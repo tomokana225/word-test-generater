@@ -1,0 +1,5 @@
+{
+  "name": "単語テスト作成6",
+  "description": "Upload an Excel or CSV file of words and their translations to automatically generate vocabulary tests with various question formats. Print both the test and the answer key.",
+  "requestFramePermissions": []
+}
