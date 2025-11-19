@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import WordSourceSelector from './components/WordSourceSelector';
 import TestConfigurator from './components/TestConfigurator';
@@ -219,23 +218,28 @@ function App() {
     };
 
     return (
-        <div className="bg-slate-50 min-h-screen font-sans">
-            <header className="bg-white shadow-sm sticky top-0 z-30">
-                <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-slate-800">AI単語テストジェネレーター</h1>
-                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-slate-100">
-                        <SettingsIcon className="w-6 h-6 text-slate-600" />
+        <div className="bg-slate-50 min-h-screen font-sans text-slate-900 pb-20">
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm backdrop-blur-md bg-white/90">
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl p-2 shadow-lg shadow-indigo-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                            </svg>
+                        </div>
+                        <h1 className="text-xl font-bold text-slate-800 tracking-tight">AI単語テスト<span className="text-indigo-600">ジェネレーター</span></h1>
+                    </div>
+                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors">
+                        <SettingsIcon className="w-6 h-6" />
                     </button>
                 </div>
             </header>
 
-            <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="max-w-4xl mx-auto">
-                    <div className="mb-8">
-                        <Stepper currentStep={step} />
-                    </div>
-                    {renderStep()}
+            <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-10">
+                    <Stepper currentStep={step} />
                 </div>
+                {renderStep()}
             </main>
             
             {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
