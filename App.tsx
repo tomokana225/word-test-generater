@@ -136,7 +136,7 @@ function App() {
                      setProgressMessage(`テスト ${i + 1}/${testRanges.length} (${range.name}): ${msg}`);
                 });
 
-                results.push({ title: range.name, ...result });
+                results.push({ ...result, title: range.name });
             }
 
             if(results.length === 0) {
