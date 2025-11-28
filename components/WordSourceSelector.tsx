@@ -22,24 +22,61 @@ const WordSourceSelector: React.FC<WordSourceSelectorProps> = ({ wordLists, acti
     const [wordsPerTest, setWordsPerTest] = useState(50);
     const [validationError, setValidationError] = useState<string | null>(null);
 
-    const masterWordCount = activeList?.words.length || 0;
+    // Derived values from activeList
+    const wordCount = activeList?.words.length || 0;
+    const minWordId = (activeList && activeList.words.length > 0) ? Number(activeList.words[0].id) : 1;
+    const maxWordId = (activeList && activeList.words.length > 0) ? Number(activeList.words[activeList.words.length - 1].id) : 0;
 
     useEffect(() => {
         if (error) setValidationError(null);
     }, [error]);
 
+    // Reset/Initialize ranges when activeList changes
+    useEffect(() => {
+        if (activeList && activeList.words.length > 0) {
+            const start = minWordId;
+            const increment = Math.max(1, wordsPerTest);
+            // Ensure end does not exceed the actual max ID of the list
+            const end = maxWordId > 0 ? Math.min(start + increment - 1, maxWordId) : start + increment - 1;
+
+            setRanges([{
+                id: `range-${Date.now()}`,
+                name: '小テスト 1',
+                startId: String(start),
+                endId: String(end)
+            }]);
+        } else {
+             // Fallback if no list is active or empty
+             setRanges([{
+                id: `range-${Date.now()}`,
+                name: '小テスト 1',
+                startId: '1',
+                endId: '50'
+            }]);
+        }
+        // We exclude wordsPerTest from deps to prevent resetting ranges when user just changes the increment setting.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeList?.id]); 
+
     const handleAddRange = () => {
         const lastRange = ranges[ranges.length - 1];
-        const nextStart = lastRange ? parseInt(lastRange.endId, 10) + 1 : 1;
+        // If there is a last range, start from its end + 1. 
+        // If not, start from the minimum ID of the list.
+        const lastEndId = lastRange ? parseInt(lastRange.endId, 10) : (minWordId - 1);
+        const safeLastEndId = isNaN(lastEndId) ? (minWordId - 1) : lastEndId;
 
+        const nextStart = safeLastEndId + 1;
         const increment = Math.max(1, wordsPerTest || 1);
         const nextEnd = nextStart + increment - 1;
+        
+        // Cap the end ID at the list's max ID if available
+        const cappedEnd = maxWordId > 0 ? Math.min(nextEnd, maxWordId) : nextEnd;
 
         const newRange: TestRange = {
             id: `range-${Date.now()}`,
             name: `小テスト ${ranges.length + 1}`,
-            startId: isNaN(nextStart) ? '' : String(nextStart),
-            endId: isNaN(nextEnd) ? '' : String(masterWordCount > 0 ? Math.min(nextEnd, masterWordCount) : nextEnd),
+            startId: String(nextStart),
+            endId: String(cappedEnd),
         };
         setRanges([...ranges, newRange]);
     };
@@ -71,6 +108,10 @@ const WordSourceSelector: React.FC<WordSourceSelectorProps> = ({ wordLists, acti
         for (const range of validRanges) {
             const start = parseInt(range.startId, 10);
             const end = parseInt(range.endId, 10);
+            
+            // Allow start to be >= 1. 
+            // Note: start doesn't strictly have to be >= minWordId, user might want custom ranges.
+            // But start must be <= end.
             if (isNaN(start) || isNaN(end) || start < 1 || start > end) {
                 setValidationError(`範囲「${range.name}」の番号が無効です。開始番号は1以上で、終了番号は開始番号以上である必要があります。`);
                 return;
@@ -79,7 +120,7 @@ const WordSourceSelector: React.FC<WordSourceSelectorProps> = ({ wordLists, acti
         onCreateTests(validRanges);
     };
     
-    const canProceed = masterWordCount > 0 && !!activeList && ranges.length > 0;
+    const canProceed = wordCount > 0 && !!activeList && ranges.length > 0;
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -149,7 +190,7 @@ const WordSourceSelector: React.FC<WordSourceSelectorProps> = ({ wordLists, acti
                                 </div>
                                 {activeList && (
                                     <div className="flex-shrink-0 whitespace-nowrap px-6 py-3 bg-indigo-50 text-indigo-700 rounded-xl font-medium border border-indigo-100 flex items-center gap-3">
-                                        <span className="text-2xl font-bold leading-none">{masterWordCount}</span>
+                                        <span className="text-2xl font-bold leading-none">{wordCount}</span>
                                         <span className="text-xs font-bold uppercase tracking-wider opacity-70">WORDS</span>
                                     </div>
                                 )}
