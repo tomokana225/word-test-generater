@@ -13,12 +13,13 @@ function escapeHtml(text: string): string {
 
 function processPrompt(prompt: string): string {
     // Convert __word__ to a span with underline style
-    return escapeHtml(prompt).replace(/__(.*?)__/g, '<span style="text-decoration: underline; font-weight: bold;">$1</span>');
+    // The regex captures content between double underscores
+    return escapeHtml(prompt).replace(/__(.*?)__/g, '<span style="text-decoration: underline; font-weight: bold; padding: 0 4px;">$1</span>');
 }
 
 const questionTypeTitles: { [key: string]: string } = {
-    translation: '次の下線部の日本語を英語に直し、文を完成させなさい。',
-    reverseTranslation: '次の下線部の英単語の日本語訳を答えなさい。',
+    translation: '次の英文の下線部の日本語を英語に直し、文を完成させなさい。',
+    reverseTranslation: '次の英文の下線部の単語の意味を日本語で答えなさい。',
     multipleChoice: '次の英単語の日本語訳として最も適切なものを、選択肢 a) ～ d) から一つ選びなさい。',
     fillInTheBlank: '次の日本語訳に合う英単語を答えなさい。',
     synonym: '次の英単語の類義語として最も適切なものを、選択肢 a) ～ d) から一つ選びなさい。',
@@ -40,7 +41,7 @@ export function buildTestHtml(questions: Question[]): string {
     for (const type of questionOrder) {
         if (!groupedQuestions[type] || groupedQuestions[type].length === 0) continue;
 
-        finalHtml += `<p class="question-group-title" style="font-weight: bold; margin-top: 2em;">${questionTypeTitles[type] || type}</p>`;
+        finalHtml += `<p class="question-group-title" style="font-weight: bold; margin-top: 2em; margin-bottom: 1em;">${questionTypeTitles[type] || type}</p>`;
         const questionList = groupedQuestions[type];
 
         questionList.forEach((q) => {
@@ -48,25 +49,27 @@ export function buildTestHtml(questions: Question[]): string {
             switch (q.type) {
                 case 'translation':
                 case 'reverseTranslation':
+                    // These now use the prompt as the full sentence with __markers__
                     questionContent = `<span>${processPrompt(q.prompt || '')}</span>`;
                     break;
                 case 'multipleChoice':
                 case 'synonym':
                 case 'antonym':
-                    const tableStyle = "border-collapse: collapse; border: none; background-color: transparent; width: 100%;";
-                    const cellStyle = "border: none; background-color: transparent; width: 25%; vertical-align: top; padding: 0 1em 0 0;";
+                    const tableStyle = "border-collapse: collapse; border: none; background-color: transparent; width: 100%; margin-top: 0.25em;";
+                    const cellStyle = "border: none; background-color: transparent; width: 25%; vertical-align: top; padding: 0.25em 1em 0 0;";
 
                     const optionsCells = (q.options || []).map((opt, i) =>
                         `<td style="${cellStyle}">${String.fromCharCode(97 + i)}) ${escapeHtml(opt)}</td>`
                     ).join('');
                     const tableHtml = `<table style="${tableStyle}"><tbody><tr style="border: none; background-color: transparent;">${optionsCells}</tr></tbody></table>`;
-                    questionContent = `<span>${escapeHtml(q.promptWord || '')}</span>${tableHtml}`;
+                    // Use promptWord for the single word display, or prompt if promptWord is missing (fallback)
+                    questionContent = `<span style="font-weight: 500;">${escapeHtml(q.promptWord || q.prompt || '')}</span>${tableHtml}`;
                     break;
                 case 'fillInTheBlank':
                     questionContent = `<span>${escapeHtml(q.prompt || '')} ( ____________________ )</span>`;
                     break;
             }
-             finalHtml += `<p class="question-paragraph">${questionCounter}. ${questionContent}</p>`;
+             finalHtml += `<div class="question-item" style="margin-bottom: 0.8em;"><span style="font-weight: bold; margin-right: 0.5em;">${questionCounter}.</span> ${questionContent}</div>`;
              questionCounter++;
         });
     }
@@ -75,7 +78,7 @@ export function buildTestHtml(questions: Question[]): string {
 
 export function buildTestBatchHtml(testBatch: GeneratedTestData[]): string {
     return testBatch.map(testData => `
-        <h2 style="text-align: center; font-size: 1.5em; margin-bottom: 1em; page-break-before: always;">英単語テスト: ${escapeHtml(testData.title)}</h2>
+        <h2 style="text-align: center; font-size: 1.5em; margin-bottom: 1.5em; page-break-before: always;">英単語テスト: ${escapeHtml(testData.title)}</h2>
         ${buildTestHtml(testData.questions)}
     `).join('<hr style="margin: 3em 0; border: 1px solid #ccc; page-break-after: always;">');
 }
@@ -106,14 +109,14 @@ export function buildAnswerSheetBatchHtml(testBatch: GeneratedTestData[]): strin
                     displayAnswer = `${String.fromCharCode(97 + optionIndex)}) ${ans.answerText}`;
                 }
              }
-             const wordIdSpan = ans.wordId ? ` <span style="font-size: 0.8em; color: #555;">(単語番号: ${escapeHtml(ans.wordId)})</span>` : '';
-            return `<li><b>${index + 1}.</b> ${escapeHtml(displayAnswer)}${wordIdSpan}</li>`;
+             const wordIdSpan = ans.wordId ? ` <span style="font-size: 0.8em; color: #555;">(No.${escapeHtml(ans.wordId)})</span>` : '';
+            return `<li style="margin-bottom: 0.25em;"><b>${index + 1}.</b> ${escapeHtml(displayAnswer)}${wordIdSpan}</li>`;
         }).join('');
         
         return `
             <div class="printable-answers" style="page-break-inside: avoid;">
                 <h3>解答: ${escapeHtml(testData.title)}</h3>
-                <ol>${answersHtml}</ol>
+                <ul style="list-style: none; padding-left: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5em;">${answersHtml}</ul>
             </div>`;
     }).join('<br>');
 }
@@ -141,7 +144,7 @@ export function buildPrintHtml(pages: string[], elements: DraggableElementData[]
              font-size: ${pageSettings.fontSize}pt;
              line-height: ${pageSettings.lineHeight};
         }
-         .document-content p, .document-content table {
+         .document-content p, .document-content table, .document-content .question-item {
             margin-top: 0;
             margin-bottom: ${pageSettings.questionSpacing}pt;
         }
@@ -251,7 +254,7 @@ export function buildCopyableHtml(pages: string[], elements: DraggableElementDat
             font-size: ${pageSettings.fontSize}pt; 
             line-height: ${pageSettings.lineHeight};
         }
-        p {
+        p, .question-item {
             margin-top: 0;
             margin-bottom: ${pageSettings.questionSpacing}pt;
         }
@@ -300,14 +303,14 @@ export function buildAnswerSheetHtml(answers: Answer[], questions: Question[]): 
                 displayAnswer = `${String.fromCharCode(97 + optionIndex)}) ${ans.answerText}`;
             }
          }
-         const wordIdSpan = ans.wordId ? ` <span style="font-size: 0.8em; color: #555;">(単語番号: ${escapeHtml(ans.wordId)})</span>` : '';
+         const wordIdSpan = ans.wordId ? ` <span style="font-size: 0.8em; color: #555;">(No.${escapeHtml(ans.wordId)})</span>` : '';
         return `<li><b>${index + 1}.</b> ${escapeHtml(displayAnswer)}${wordIdSpan}</li>`;
     }).join('');
 
     return `
         <div class="printable-answers">
             <h1>解答</h1>
-            <ol>${answersHtml}</ol>
+            <ul style="list-style: none; padding-left: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5em;">${answersHtml}</ul>
         </div>
     `;
 }

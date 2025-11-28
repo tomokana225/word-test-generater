@@ -96,8 +96,8 @@ export const generateTest = async (
     const ai = new GoogleGenAI({ apiKey });
     
     const questionsToGenerate: string[] = [];
-    if (config.translation > 0) questionsToGenerate.push(`${config.translation} translation questions (Japanese prompt -> English answer)`);
-    if (config.reverseTranslation > 0) questionsToGenerate.push(`${config.reverseTranslation} reverseTranslation questions (English prompt -> Japanese answer)`);
+    if (config.translation > 0) questionsToGenerate.push(`${config.translation} translation questions (Fill-in-the-blank in English sentence based on Japanese clue)`);
+    if (config.reverseTranslation > 0) questionsToGenerate.push(`${config.reverseTranslation} reverseTranslation questions (Translate underlined English word in sentence)`);
     if (config.multipleChoice > 0) questionsToGenerate.push(`${config.multipleChoice} multipleChoice questions (Select correct Japanese meaning for English word)`);
     if (config.fillInTheBlank > 0) questionsToGenerate.push(`${config.fillInTheBlank} fillInTheBlank questions (Write English word for Japanese meaning)`);
     if (config.synonym > 0) questionsToGenerate.push(`${config.synonym} synonym questions (Select correct English synonym)`);
@@ -139,12 +139,33 @@ export const generateTest = async (
        ${questionsToGenerate.join('\n       ')}
     
     2. Constraints per question type:
-       - translation: Prompt is Japanese. Answer is English word.
-       - reverseTranslation: Prompt is English word. Answer is Japanese.
-       - multipleChoice: Prompt is English word. Options are 4 Japanese meanings. One correct, 3 distractors.
-       - fillInTheBlank: Prompt is Japanese. Answer is English word.
-       - synonym: Prompt is English word. Options are 4 English words. One synonym, 3 distractors.
-       - antonym: Prompt is English word. Options are 4 English words. One antonym, 3 distractors.
+       - translation:
+         * Create a natural English sentence containing the target word.
+         * Replace the target word with its Japanese meaning wrapped in double underscores.
+         * Example Prompt: "We need to __創り出す__ a new marketing strategy." (if target is "create")
+         * Answer: The original English word ("create").
+       
+       - reverseTranslation:
+         * Create a natural English sentence containing the target word.
+         * Wrap the target word in double underscores.
+         * Example Prompt: "This position will __require__ at least five years of experience."
+         * Answer: The Japanese meaning of the underlined word.
+
+       - multipleChoice:
+         * Prompt is the English word.
+         * Options are 4 Japanese meanings. One correct, 3 distractors.
+       
+       - fillInTheBlank: 
+         * Prompt is the Japanese meaning.
+         * Answer is the English word. (Standard spelling test)
+
+       - synonym: 
+         * Prompt is the English word. 
+         * Options are 4 English words. One synonym, 3 distractors.
+
+       - antonym: 
+         * Prompt is the English word. 
+         * Options are 4 English words. One antonym, 3 distractors.
     
     3. **CRITICAL RULE FOR JAPANESE MEANINGS**:
        - When generating Japanese text for answers (reverseTranslation) or options (multipleChoice), strictly provide ONLY ONE most common and appropriate meaning.
@@ -182,6 +203,11 @@ export const generateTest = async (
 
             const originalWord = words.find(w => w.id === q.wordId);
             if (!originalWord) continue;
+
+            // Ensure promptWord is set for types that need it if AI missed it
+            if (['multipleChoice', 'synonym', 'antonym'].includes(q.type) && !q.promptWord) {
+                q.promptWord = originalWord.word;
+            }
 
             if (['multipleChoice', 'synonym', 'antonym'].includes(q.type)) {
                 if (!q.options || q.options.length !== 4) {
