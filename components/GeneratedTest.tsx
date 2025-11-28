@@ -10,6 +10,7 @@ import {
     buildAnswerSheetBatchHtml,
     buildPrintHtml,
     buildCopyableHtml,
+    buildContinuousPrintHtml,
 } from '../utils/htmlBuilders';
 import Ribbon from './Ribbon';
 import DraggableElement from './DraggableElement';
@@ -66,6 +67,9 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     const [printContent, setPrintContent] = useState('');
     const [showFormattingMarks, setShowFormattingMarks] = useState(false);
     const [showGridLayout, setShowGridLayout] = useState(false);
+    
+    // New state for Continuous Editor View
+    const [isContinuousView, setIsContinuousView] = useState(false);
 
     const editorRefs = useRef<(HTMLDivElement | null)[]>([]);
     const paginatorRef = useRef<HTMLDivElement>(null);
@@ -105,27 +109,54 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     
     const paginateContent = useCallback(() => {
         if (!paginatorRef.current || !documentHtml) return;
-        const pageHeight = PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].height - (pageSettings.margin * 2 * (96 / 25.4));
+        
+        // Calculate dimensions
+        const mmToPx = 96 / 25.4;
+        const dimension = PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation];
+        const contentWidth = dimension.width - (pageSettings.margin * 2 * mmToPx);
+        // Add a small buffer (e.g., 5px) to prevent strict boundary issues
+        const maxContentHeight = dimension.height - (pageSettings.margin * 2 * mmToPx) - 5; 
+
         paginatorRef.current.innerHTML = documentHtml;
         const nodes = Array.from(paginatorRef.current.childNodes);
         const newPages: string[] = [];
+        
         const tempPageDiv = document.createElement('div');
-        tempPageDiv.style.width = `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].width - (pageSettings.margin * 2 * (96 / 25.4))}px`;
+        tempPageDiv.style.width = `${contentWidth}px`;
         tempPageDiv.style.visibility = 'hidden';
+        tempPageDiv.style.position = 'absolute'; // Prevent it from affecting flow
+        // Important: mimic the editor's typography to get accurate height
+        tempPageDiv.style.fontSize = `${pageSettings.fontSize}pt`;
+        tempPageDiv.style.lineHeight = `${pageSettings.lineHeight}`;
+        // Important: use flow-root or hidden overflow to capture child margins
+        tempPageDiv.style.display = 'flow-root'; 
+        
         document.body.appendChild(tempPageDiv);
 
         nodes.forEach(node => {
             const nodeClone = node.cloneNode(true);
             tempPageDiv.appendChild(nodeClone);
-            if (tempPageDiv.offsetHeight > pageHeight) {
+            
+            // Check height
+            if (tempPageDiv.getBoundingClientRect().height > maxContentHeight) {
+                // If adding this node exceeds height, remove it, push current page, and start new
                 tempPageDiv.removeChild(nodeClone);
-                newPages.push(tempPageDiv.innerHTML);
-                tempPageDiv.innerHTML = '';
-                tempPageDiv.appendChild(nodeClone);
+                
+                // If the page is empty but the single node is too big, force it in (or it will loop forever)
+                if (tempPageDiv.innerHTML === '') {
+                     newPages.push((node as Element).outerHTML || '');
+                } else {
+                     newPages.push(tempPageDiv.innerHTML);
+                     tempPageDiv.innerHTML = '';
+                     tempPageDiv.appendChild(nodeClone);
+                }
             }
         });
         
-        newPages.push(tempPageDiv.innerHTML);
+        if (tempPageDiv.innerHTML !== '') {
+            newPages.push(tempPageDiv.innerHTML);
+        }
+        
         document.body.removeChild(tempPageDiv);
         setPages(newPages.length > 0 ? newPages : ['']);
         editorRefs.current = newPages.map(() => null);
@@ -143,25 +174,22 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     const handleCopyToClipboard = useCallback(() => {
         try {
             const htmlToCopy = buildCopyableHtml(pages, elements, pageSettings);
-            // Plain text version should use a single newline to avoid extra spaces.
-            const plainTextToCopy = pages.join('\n'); 
+            const plainTextToCopy = pages.join('\n').replace(/<[^>]+>/g, ''); 
 
             const htmlBlob = new Blob([htmlToCopy], { type: 'text/html' });
             const textBlob = new Blob([plainTextToCopy], { type: 'text/plain' });
 
-            // Use the Clipboard API to write both rich text and a plain text fallback.
             const clipboardItem = new ClipboardItem({
                 'text/html': htmlBlob,
                 'text/plain': textBlob,
             });
 
             navigator.clipboard.write([clipboardItem]).catch(err => {
-                console.error('クリップボードへのコピーに失敗しました。テキストとしてフォールバックします。:', err);
-                // Fallback for browsers that might not support rich text copy well.
+                console.error('Clipboard copy failed:', err);
                 navigator.clipboard.writeText(plainTextToCopy);
             });
         } catch (err) {
-            console.error('コピー用のコンテンツのビルド中にエラーが発生しました:', err);
+            console.error('Build copy content failed:', err);
         }
     }, [pages, elements, pageSettings]);
 
@@ -176,20 +204,57 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     };
     const handleUpdateElement = (id: string, updates: Partial<DraggableElementData>) => { setElements(elements.map(el => el.id === id ? { ...el, ...updates } : el)); };
     const handleDeleteElement = (id: string) => { setElements(elements.filter(el => el.id !== id)); recordHistory(); };
-    const handlePrint = () => { const finalHtml = buildPrintHtml(pages, elements, pageSettings); setPrintContent(finalHtml); setIsPrintPreviewOpen(true); };
+    
+    // Initial Print Handler - defaults to Paged
+    const handlePrint = () => { 
+        const finalHtml = buildPrintHtml(pages, elements, pageSettings); 
+        setPrintContent(finalHtml); 
+        setIsPrintPreviewOpen(true); 
+    };
+
+    // Handler to switch modes inside the modal
+    const handlePreviewModeChange = (mode: 'paged' | 'continuous') => {
+        if (mode === 'paged') {
+            setPrintContent(buildPrintHtml(pages, elements, pageSettings));
+        } else {
+            setPrintContent(buildContinuousPrintHtml(pages, elements, pageSettings));
+        }
+    };
+
     const doPrint = () => { printIframeRef.current?.contentWindow?.print(); };
     const handleSaveLayout = () => { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({ savedElements: elements, savedPageSettings: pageSettings })); };
     const handleResetLayout = () => { setElements([]); setPageSettings(DEFAULT_PAGE_SETTINGS); localStorage.removeItem(LAYOUT_STORAGE_KEY); };
 
+    // Toggle for Editor View
+    const toggleContinuousView = () => setIsContinuousView(!isContinuousView);
+
     return (
         <div className="space-y-4">
-            <Ribbon formatState={{ fontName: 'sans-serif', fontSize: '12', bold: false, underline: false, strikethrough: false, align: 'left'}} onAction={(cmd, val) => document.execCommand(cmd, false, val)} pageSettings={pageSettings} onPageSettingsChange={(s) => { setPageSettings(s); recordHistory(); }} onApplyGridLayout={() => {}} onAddElement={handleAddElement} onSaveLayout={handleSaveLayout} onResetLayout={handleResetLayout} onPrint={handlePrint} onCopyToClipboard={handleCopyToClipboard} showFormattingMarks={showFormattingMarks} onToggleFormattingMarks={() => setShowFormattingMarks(!showFormattingMarks)} showGridLayout={showGridLayout} onToggleGridLayout={() => setShowGridLayout(!showGridLayout)} showContentBoxFrame={true} onToggleContentBoxFrame={() => {}} />
+            <Ribbon 
+                formatState={{ fontName: 'sans-serif', fontSize: '12', bold: false, underline: false, strikethrough: false, align: 'left'}} 
+                onAction={(cmd, val) => document.execCommand(cmd, false, val)} 
+                pageSettings={pageSettings} 
+                onPageSettingsChange={(s) => { setPageSettings(s); recordHistory(); }} 
+                onApplyGridLayout={() => {}} 
+                onAddElement={handleAddElement} 
+                onSaveLayout={handleSaveLayout} 
+                onResetLayout={handleResetLayout} 
+                onPrint={handlePrint} 
+                onCopyToClipboard={handleCopyToClipboard} 
+                showFormattingMarks={showFormattingMarks} 
+                onToggleFormattingMarks={() => setShowFormattingMarks(!showFormattingMarks)} 
+                showGridLayout={showGridLayout} 
+                onToggleGridLayout={() => setShowGridLayout(!showGridLayout)} 
+                showContentBoxFrame={true} 
+                onToggleContentBoxFrame={() => {}} 
+            />
+            
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-slate-800">ステップ3: 確認・編集・印刷</h2>
             </div>
             {error && <ErrorDisplay error={error} />}
 
-            <div className="border-b border-slate-200">
+            <div className="border-b border-slate-200 flex justify-between items-center">
                 <nav className="-mb-px flex space-x-4" aria-label="Tabs">
                     <button
                         onClick={() => setActiveView('test')}
@@ -212,20 +277,90 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                         解答
                     </button>
                 </nav>
+                
+                {activeView === 'test' && (
+                    <div className="flex items-center space-x-2 py-2">
+                        <label className="inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={isContinuousView} 
+                                onChange={toggleContinuousView} 
+                            />
+                            <div className="relative w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <span className="ms-3 text-sm font-medium text-slate-700">ページ区切りを隠す</span>
+                        </label>
+                    </div>
+                )}
             </div>
 
             <div className="mt-6">
                 {activeView === 'test' && (
-                    <div className="bg-slate-200 p-8 overflow-x-auto" onClick={() => setActiveElementId(null)}>
+                    <div className="bg-slate-200 p-8 overflow-x-auto min-h-[600px] rounded-lg inner-shadow" onClick={() => setActiveElementId(null)}>
                         <div ref={paginatorRef} style={{ position: 'absolute', left: -9999, top: -9999, visibility: 'hidden' }} />
-                        {pages.map((pageHtml, index) => (
-                            <div key={index} className="bg-white shadow-lg mx-auto relative printable-page" style={{ width: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].width}px`, height: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].height}px`, marginBottom: '1rem' }}>
-                                <div ref={el => { editorRefs.current[index] = el; }} contentEditable suppressContentEditableWarning onBlur={() => recordHistory()} onInput={(e) => handleContentChange(index, e.currentTarget.innerHTML)} dangerouslySetInnerHTML={{ __html: pageHtml }} className="w-full h-full box-border outline-none" style={{ padding: `${pageSettings.margin}mm`, fontSize: `${pageSettings.fontSize}pt`, lineHeight: pageSettings.lineHeight }} />
-                                {elements.filter(el => el.pageIndex === index).map(el => (
-                                    <DraggableElement key={el.id} element={el} onUpdate={handleUpdateElement} isActive={activeElementId === el.id} onActivate={setActiveElementId} onDelete={handleDeleteElement} />
-                                ))}
+                        
+                        {isContinuousView ? (
+                            /* Continuous View Mode */
+                            <div 
+                                className="bg-white shadow-lg mx-auto relative printable-page" 
+                                style={{ 
+                                    width: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].width}px`, 
+                                    minHeight: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].height}px`,
+                                    padding: `${pageSettings.margin}mm`
+                                }}
+                            >
+                                <div 
+                                    contentEditable 
+                                    suppressContentEditableWarning 
+                                    dangerouslySetInnerHTML={{ __html: documentHtml }} 
+                                    onInput={(e) => {
+                                        setDocumentHtml(e.currentTarget.innerHTML);
+                                        // Note: Pagination recalculates in background but view is unified
+                                    }}
+                                    className="w-full h-full outline-none" 
+                                    style={{ 
+                                        fontSize: `${pageSettings.fontSize}pt`, 
+                                        lineHeight: pageSettings.lineHeight 
+                                    }} 
+                                />
+                                {/* Draggable elements might be misaligned in continuous view, hiding or showing on first page context only could be tricky. 
+                                    For now, we render them based on page 0 logic or hide them to avoid confusion. 
+                                    Let's render them all relative to the top, but since Y is relative to page, this is hard.
+                                    Decision: Hide elements in continuous view or warn user. For smooth UX, let's keep it simple: 
+                                    Continuous view is for text editing flow. Elements are page-specific. 
+                                */}
                             </div>
-                        ))}
+                        ) : (
+                            /* Paged View Mode (Default) */
+                            <>
+                                {pages.map((pageHtml, index) => (
+                                    <div key={index} className="bg-white shadow-lg mx-auto relative printable-page transition-transform hover:shadow-xl" style={{ width: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].width}px`, height: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].height}px`, marginBottom: '2rem' }}>
+                                        <div 
+                                            ref={el => { editorRefs.current[index] = el; }} 
+                                            contentEditable 
+                                            suppressContentEditableWarning 
+                                            onBlur={() => recordHistory()} 
+                                            onInput={(e) => handleContentChange(index, e.currentTarget.innerHTML)} 
+                                            dangerouslySetInnerHTML={{ __html: pageHtml }} 
+                                            className="w-full h-full box-border outline-none" 
+                                            style={{ 
+                                                padding: `${pageSettings.margin}mm`, 
+                                                fontSize: `${pageSettings.fontSize}pt`, 
+                                                lineHeight: pageSettings.lineHeight 
+                                            }} 
+                                        />
+                                        {elements.filter(el => el.pageIndex === index).map(el => (
+                                            <DraggableElement key={el.id} element={el} onUpdate={handleUpdateElement} isActive={activeElementId === el.id} onActivate={setActiveElementId} onDelete={handleDeleteElement} />
+                                        ))}
+                                        
+                                        {/* Page Number Indicator */}
+                                        <div className="absolute -right-12 top-0 text-slate-400 font-bold text-xs">
+                                            P.{index + 1}
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
                 )}
                 {activeView === 'answers' && (
@@ -234,7 +369,11 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
             </div>
             
             {isPrintPreviewOpen && (
-                <PrintPreviewModal onClose={() => setIsPrintPreviewOpen(false)} onPrint={doPrint}>
+                <PrintPreviewModal 
+                    onClose={() => setIsPrintPreviewOpen(false)} 
+                    onPrint={doPrint}
+                    onModeChange={handlePreviewModeChange}
+                >
                     <iframe ref={printIframeRef} srcDoc={printContent} title="Print Preview" className="w-full h-full border-0" />
                 </PrintPreviewModal>
             )}

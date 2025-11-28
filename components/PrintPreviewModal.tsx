@@ -1,14 +1,16 @@
-
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import { PrintIcon } from './icons/PrintIcon';
 
 interface PrintPreviewModalProps {
     onClose: () => void;
     onPrint: () => void;
+    onModeChange: (mode: 'paged' | 'continuous') => void;
     children: ReactNode; // Expecting an iframe now
 }
 
-const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint, children }) => {
+const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint, onModeChange, children }) => {
+    const [mode, setMode] = useState<'paged' | 'continuous'>('paged');
+
     // Add a keyboard listener for the Escape key to close the modal
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -22,6 +24,11 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint,
         };
     }, [onClose]);
 
+    const handleModeChange = (newMode: 'paged' | 'continuous') => {
+        setMode(newMode);
+        onModeChange(newMode);
+    };
+
     return (
         <div 
             className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 no-print" 
@@ -30,8 +37,25 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint,
             onClick={onClose}
         >
             <div className="bg-white rounded-lg shadow-xl w-11/12 h-5/6 max-w-5xl flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-slate-800">印刷プレビュー</h2>
+                <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                    <div className="flex items-center space-x-4">
+                        <h2 className="text-xl font-bold text-slate-800">印刷プレビュー</h2>
+                        
+                        <div className="flex bg-slate-200 rounded-lg p-1 text-sm font-medium">
+                             <button 
+                                onClick={() => handleModeChange('paged')}
+                                className={`px-3 py-1.5 rounded-md transition-all ${mode === 'paged' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                レイアウト (ページ)
+                            </button>
+                            <button 
+                                onClick={() => handleModeChange('continuous')}
+                                className={`px-3 py-1.5 rounded-md transition-all ${mode === 'continuous' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                簡易表示 (連続)
+                            </button>
+                        </div>
+                    </div>
                     <button onClick={onClose} className="text-2xl leading-none text-slate-500 hover:text-slate-800">&times;</button>
                 </div>
                 <div className="p-8 overflow-auto bg-slate-200 flex-grow">
