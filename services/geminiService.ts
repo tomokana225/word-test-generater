@@ -493,9 +493,11 @@ export const generateListeningTest = async (
                 // Switch to Sequential Execution with Delay to prevent 429 Rate Limit errors
                 const imageOptions: string[] = [];
                 for (const desc of q.options) {
+                    // Generate image with retry logic
                     const img = await generateImageWithRetry(ai, desc);
                     imageOptions.push(img);
-                    // Add a small buffer between requests to be safe
+                    
+                    // Add a small buffer between requests to be safe and avoid rate limits
                     await delay(1000);
                 }
                 processedQ.imageOptions = imageOptions;
