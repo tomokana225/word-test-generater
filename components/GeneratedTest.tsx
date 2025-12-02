@@ -20,7 +20,6 @@ import PrintPreviewModal from './PrintPreviewModal';
 import AnswerSheet from './AnswerSheet';
 import ErrorDisplay from './ErrorDisplay';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
-import { LayoutGridIcon } from './icons/LayoutGridIcon';
 
 const DEFAULT_PAGE_SETTINGS: PageStyleSettings = {
     fontSize: 10.5,

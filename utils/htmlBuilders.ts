@@ -1,5 +1,5 @@
 
-import { Question, GeneratedTestData, DraggableElementData, PageStyleSettings, Answer } from '../types';
+import { Question, GeneratedTestData, DraggableElementData, PageStyleSettings } from '../types';
 
 function escapeHtml(text: string): string {
     if (typeof text !== 'string') return '';
@@ -199,7 +199,7 @@ export function buildPrintHtml(pages: string[], elements: DraggableElementData[]
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${style}</style></head><body>${bodyContent}</body></html>`;
 }
 
-export function buildContinuousPrintHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
+export function buildContinuousPrintHtml(pages: string[], _elements: DraggableElementData[], settings: PageStyleSettings): string {
     // Continuous print: simply stack content, let browser paginate
     const fullContent = pages.join('');
     // Elements are tricky in continuous flow since they are absolute positioned relative to pages.
@@ -267,6 +267,6 @@ export function buildAnswerPrintHtml(htmlContent: string, columns: number = 2): 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${style}</style></head><body>${htmlContent}</body></html>`;
 }
 
-export function buildCopyableHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
+export function buildCopyableHtml(pages: string[], _elements: DraggableElementData[], _settings: PageStyleSettings): string {
     return pages.join('<br><hr><br>');
 }
