@@ -170,7 +170,7 @@ export function buildPrintHtml(pages: string[], elements: DraggableElementData[]
     return html;
 }
 
-export function buildContinuousPrintHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
+export function buildContinuousPrintHtml(pages: string[], _elements: DraggableElementData[], settings: PageStyleSettings): string {
     const style = `
         @page { size: auto; margin: ${settings.margin}mm; }
         body { font-family: sans-serif; line-height: ${settings.lineHeight}; font-size: ${settings.fontSize}pt; }
@@ -179,6 +179,6 @@ export function buildContinuousPrintHtml(pages: string[], elements: DraggableEle
     return `<html><head><style>${style}</style></head><body>${pages.join('')}</body></html>`;
 }
 
-export function buildCopyableHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
+export function buildCopyableHtml(pages: string[], _elements: DraggableElementData[], _settings: PageStyleSettings): string {
     return pages.join('<br/><br/>');
 }
