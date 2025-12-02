@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
 import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig } from '../types';
 
@@ -420,8 +421,9 @@ export const generateListeningTest = async (
                     });
                     
                     let foundImage = false;
-                    if (imageResponse.candidates && imageResponse.candidates.length > 0) {
-                        for (const part of imageResponse.candidates[0].content.parts) {
+                    const parts = imageResponse.candidates?.[0]?.content?.parts;
+                    if (parts) {
+                        for (const part of parts) {
                             if (part.inlineData && part.inlineData.data) {
                                 imageOptions.push(part.inlineData.data);
                                 foundImage = true;
