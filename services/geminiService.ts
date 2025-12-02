@@ -81,6 +81,40 @@ const generateOptionsForWord = async (ai: GoogleGenAI, word: string, onProgress:
 };
 
 /**
+ * Helper to generate a single image with retry logic for 429 errors.
+ */
+const generateImageWithRetry = async (ai: GoogleGenAI, prompt: string): Promise<string> => {
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts: [{ text: `Draw a simple, clear illustration of: ${prompt}` }] },
+                config: { imageConfig: { aspectRatio: "1:1" } }
+            });
+            const part = response.candidates?.[0]?.content?.parts?.[0];
+            if (part && part.inlineData && part.inlineData.data) {
+                return part.inlineData.data;
+            }
+            return "";
+        } catch (e: any) {
+            console.warn(`Image generation attempt ${attempt + 1} failed for "${prompt}":`, e.message);
+            // Check for rate limit error (429)
+            if (e.status === 429 || (e.message && e.message.includes('429'))) {
+                // Exponential backoff: 2s, 4s, 8s
+                const waitTime = 2000 * Math.pow(2, attempt);
+                await delay(waitTime);
+            } else {
+                // For other errors, log and return empty (fail soft)
+                console.error(`Non-retriable error for image "${prompt}":`, e);
+                return ""; 
+            }
+        }
+    }
+    return "";
+};
+
+/**
  * Generates the vocabulary test based on the provided configuration.
  */
 export const generateTest = async (
@@ -456,33 +490,15 @@ export const generateListeningTest = async (
             if (q.type === 'listening-image' && config.includeIllustrations) {
                 onProgress(`イラストを生成中 (${i + 1}/${generatedQuestions.length})...`);
                 
-                const imagePromises = q.options.map(async (desc: string) => {
-                    try {
-                        const imageResponse = await ai.models.generateContent({
-                            model: 'gemini-2.5-flash-image',
-                            contents: {
-                                 parts: [{ text: `Draw a simple, clear illustration of: ${desc}` }]
-                            },
-                            config: {
-                                imageConfig: { aspectRatio: "1:1" }
-                            }
-                        });
-                        
-                        const parts = imageResponse.candidates?.[0]?.content?.parts;
-                        if (parts) {
-                            for (const part of parts) {
-                                if (part.inlineData && part.inlineData.data) {
-                                    return part.inlineData.data;
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.error(`Image generation failed for "${desc}":`, e);
-                    }
-                    return ""; 
-                });
-    
-                processedQ.imageOptions = await Promise.all(imagePromises);
+                // Switch to Sequential Execution with Delay to prevent 429 Rate Limit errors
+                const imageOptions: string[] = [];
+                for (const desc of q.options) {
+                    const img = await generateImageWithRetry(ai, desc);
+                    imageOptions.push(img);
+                    // Add a small buffer between requests to be safe
+                    await delay(1000);
+                }
+                processedQ.imageOptions = imageOptions;
             }
     
             processedQuestions.push(processedQ);
