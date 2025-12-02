@@ -42,22 +42,21 @@ export function buildTestHtml(questions: Question[]): string {
         const typeQuestions = groupedQuestions[type];
         if (!typeQuestions || typeQuestions.length === 0) return;
 
-        // Section Title
-        html += `<div class="question-section" style="margin-bottom: 12px; margin-top: 8px;">
-            <div style="font-weight: bold; font-size: 1.05em; margin-bottom: 6px;">[${type}] ${questionTypeTitles[type]}</div>
-        `;
+        // Section Title - flattened
+        // Using a plain div instead of nested section to allow pagination to split cleanly
+        html += `<div class="section-title" style="font-weight: bold; font-size: 1.05em; margin-top: 15px; margin-bottom: 5px; break-after: avoid; page-break-after: avoid;">[${type}] ${questionTypeTitles[type]}</div>`;
 
         typeQuestions.forEach(q => {
             // Updated style: 
-            // 1. margin-top: 0 to prevent blank lines at the top of a new page.
-            // 2. Reduced margin-bottom to fit more questions per page.
-            // 3. break-inside: avoid to prevent questions from being split across pages.
-            html += `<div class="question-item" style="margin-bottom: 8px; margin-top: 0; page-break-inside: avoid; break-inside: avoid;">`;
+            // 1. Reduced margin-bottom to 5px to fit more questions.
+            // 2. margin-top: 0 to avoid blank lines at page tops.
+            // 3. break-inside: avoid to keep question blocks together.
+            html += `<div class="question-item" style="margin-bottom: 5px; margin-top: 0; page-break-inside: avoid; break-inside: avoid;">`;
             
             // Question prompt
-            // Removed font-weight: bold from the number as requested
+            // Removed font-weight: bold from the number by explicitly setting normal
             html += `<div style="margin-bottom: 2px;">
-                <span style="margin-right: 6px;">${globalIndex}.</span>
+                <span style="margin-right: 6px; font-weight: normal;">${globalIndex}.</span>
                 ${q.prompt ? processPrompt(q.prompt) : processPrompt(q.promptWord || '')}
             </div>`;
 
@@ -74,8 +73,6 @@ export function buildTestHtml(questions: Question[]): string {
             html += `</div>`; // End question-item
             globalIndex++;
         });
-
-        html += `</div>`; // End question-section
     });
 
     return html;
@@ -83,11 +80,15 @@ export function buildTestHtml(questions: Question[]): string {
 
 export function buildTestBatchHtml(testBatch: GeneratedTestData[]): string {
     return testBatch.map(data => {
-        return `<div class="test-instance" style="margin-bottom: 20px;">
-            <h1 style="text-align: center; font-size: 1.4em; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px;">${escapeHtml(data.title)}</h1>
+        // Return a flattened structure (h1 + content) without a wrapping div.
+        // This allows the paginator to treat the header and individual questions as separate nodes,
+        // enabling proper flow across pages and preventing large blank spaces at the bottom.
+        return `
+            <h1 class="test-title" style="text-align: center; font-size: 1.4em; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px; width: 100%; margin-top: 0;">${escapeHtml(data.title)}</h1>
             ${buildTestHtml(data.questions)}
-        </div>`;
-    }).join('<div style="page-break-after: always; height: 0; margin: 0;"></div>');
+            <div class="test-separator" style="height: 20px; width: 100%;"></div>
+        `;
+    }).join('');
 }
 
 export function buildAnswerSheetHtml(answers: Answer[], title: string): string {
