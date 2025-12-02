@@ -2,7 +2,7 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig, GradeLevel } from '../types';
 
 // Helper function to introduce a delay, used for retrying API calls
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Caches for generated options to avoid redundant API calls during self-repair
 const optionsCache = new Map<string, string[]>();
@@ -309,7 +309,10 @@ export const generateListeningTest = async (
     onProgress("リスニング原稿を作成中...");
 
     // 1. Generate Script ONLY
+    // We add a unique timestamp to the prompt to prevent Gemini from returning cached/identical responses when generating multiple tests in a loop.
+    const uniqueId = Date.now();
     const scriptPrompt = `
+    [Unique Request ID: ${uniqueId}]
     You are an expert English teacher creating a Listening Test.
     Target Audience Level: ${targetLevel}
     ${promptIntro}
@@ -345,6 +348,9 @@ export const generateListeningTest = async (
 
         if (!response.text) throw new Error("No script generated");
         const data = JSON.parse(response.text);
+        if (!data.script || data.script.trim() === "") {
+             throw new Error("AI returned an empty script.");
+        }
         generatedScript = data.script;
     } catch (e: any) {
         throw new Error(`Script generation failed: ${e.message}`);

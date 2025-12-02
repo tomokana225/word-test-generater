@@ -141,7 +141,7 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
             }
         }).join('');
 
-        html += `<div class="listening-script" style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-size: 0.9em; line-height: 1.6; border-radius: 6px;">
+        html += `<div class="listening-script" style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-size: 0.9em; line-height: 1.6; border-radius: 6px; clear: both;">
             <strong style="display: block; margin-bottom: 8px; color: #4b5563; border-bottom: 1px dashed #d1d5db; padding-bottom: 4px;">[Listening Script]</strong>
             <div style="color: #1f2937;">${formattedScript}</div>
         </div>`;

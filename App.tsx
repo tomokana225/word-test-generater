@@ -11,7 +11,7 @@ import Stepper from './components/Stepper';
 import WordListManagerModal from './components/WordListManagerModal';
 import { SettingsIcon } from './components/icons/SettingsIcon';
 import { useApiKey } from './contexts/ApiKeyContext';
-import { generateTest, generateListeningTest } from './services/geminiService';
+import { generateTest, generateListeningTest, delay } from './services/geminiService';
 import type { QuestionConfig, AppError, WordList, TestRange, GeneratedTestData, ListeningConfig } from './types';
 
 const VOCABULARY_LISTS_KEY = 'vocabularyLists';
@@ -137,6 +137,10 @@ function App() {
             if (testMode === 'listening') {
                 const count = Math.max(1, listeningConfig.testCount);
                 for (let i = 0; i < count; i++) {
+                    if (i > 0) {
+                        setProgressMessage(`待機中... (レート制限回避のため)`);
+                        await delay(3000); // 3-second delay to prevent rate limiting
+                    }
                     setProgressMessage(`リスニングテスト ${i + 1}/${count} を生成中...`);
                     // For listening tests without word lists, pass empty array
                     const result = await generateListeningTest(apiKey, [], listeningConfig, (msg) => {
