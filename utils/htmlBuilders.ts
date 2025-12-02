@@ -1,4 +1,3 @@
-
 import { Question, GeneratedTestData, DraggableElementData, PageStyleSettings } from '../types';
 
 function escapeHtml(text: string): string {
@@ -65,17 +64,30 @@ export function buildTestHtml(questions: Question[], audioBase64?: string): stri
             </div>`;
 
             // Options handling
-            if (q.type === 'listening-image' && q.imageOptions) {
-                // Image Options
-                html += `<div class="options-grid image-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; margin-left: 24px;">`;
-                q.imageOptions.forEach((imgBase64, idx) => {
-                    const label = String.fromCharCode(97 + idx); // a, b, c, d
-                    html += `<div style="text-align: center;">
-                        <div style="font-weight: bold; margin-bottom: 2px;">${label})</div>
-                        ${imgBase64 ? `<img src="data:image/png;base64,${imgBase64}" style="max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; max-height: 150px;" />` : '<div style="border:1px dashed #ccc; padding:20px;">Image Error</div>'}
-                    </div>`;
-                });
-                html += `</div>`;
+            if (q.type === 'listening-image') {
+                if (q.imageOptions && q.imageOptions.some(opt => opt !== "")) {
+                    // Render Images if available
+                    html += `<div class="options-grid image-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; margin-left: 24px;">`;
+                    q.imageOptions.forEach((imgBase64, idx) => {
+                        const label = String.fromCharCode(97 + idx); // a, b, c, d
+                        html += `<div style="text-align: center;">
+                            <div style="font-weight: bold; margin-bottom: 2px;">${label})</div>
+                            ${imgBase64 ? `<img src="data:image/png;base64,${imgBase64}" style="max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; max-height: 150px;" />` : '<div style="border:1px dashed #ccc; padding:20px;">Image Error</div>'}
+                        </div>`;
+                    });
+                    html += `</div>`;
+                } else if (q.options) {
+                    // Render Text Description Placeholders (Fallback when image generation is disabled)
+                    html += `<div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; margin-left: 24px;">`;
+                    q.options.forEach((opt, idx) => {
+                         const label = String.fromCharCode(97 + idx);
+                         html += `<div style="border: 1px dashed #9ca3af; padding: 10px; border-radius: 6px; background-color: #f9fafb; font-size: 0.8em; color: #4b5563;">
+                            <div style="font-weight: bold; margin-bottom: 4px; color: #000;">${label})</div>
+                            <div><span style="font-weight:bold;">[画像指示]</span> ${escapeHtml(opt)}</div>
+                         </div>`;
+                    });
+                    html += `</div>`;
+                }
             } else if (['multipleChoice', 'synonym', 'antonym', 'listening'].includes(q.type) && q.options) {
                 // Text Options
                 html += `<div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; margin-left: 24px; font-size: 0.95em;">`;
@@ -127,11 +139,11 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
         // If the question is multiple choice (text or image), find the option index
         if (question) {
             if (question.type === 'listening-image' && question.options) {
-                // For image questions, the answer text matches one of the descriptions used to generate images
+                // For image questions, the answer text matches one of the descriptions
                 const optionIndex = question.options.indexOf(ans.answerText);
                  if (optionIndex !== -1) {
                     const label = String.fromCharCode(97 + optionIndex);
-                    // For image questions, just show the label (e.g., "a)") because the text is hidden from student
+                    // For image questions, just show the label (e.g., "a)")
                     displayAnswer = `${label})`; 
                 }
             } else if (['multipleChoice', 'synonym', 'antonym', 'listening'].includes(question.type) && question.options) {
