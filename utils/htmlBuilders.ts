@@ -128,16 +128,21 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
             const trimmed = line.trim();
             if (!trimmed) return '';
             
-            // Check for speaker pattern like "Man: " or "A: "
-            const match = trimmed.match(/^([^:]{1,20}):\s*(.*)$/);
+            // Check for speaker pattern. 
+            // Matches "Man:", "Woman:", "A:", "Speaker 1:", etc. at the start of the line.
+            // The regex looks for any characters (non-greedy) followed by a colon at the start.
+            const match = trimmed.match(/^([A-Za-z0-9\s]+?):\s*(.*)$/);
+            
             if (match) {
                 const speaker = escapeHtml(match[1]);
                 const content = escapeHtml(match[2]);
-                return `<div style="margin-bottom: 4px; padding-left: 1.2em; text-indent: -1.2em;">
-                    <span style="font-weight: bold; color: #374151;">${speaker}:</span> ${content}
+                // Use hanging indent for cleaner dialogue formatting
+                return `<div style="margin-bottom: 6px; padding-left: 3.5em; text-indent: -3.5em;">
+                    <span style="font-weight: bold; color: #374151; display: inline-block; width: 3em;">${speaker}:</span>${content}
                 </div>`;
             } else {
-                return `<div style="margin-bottom: 4px;">${escapeHtml(trimmed)}</div>`;
+                // Narrative or non-dialogue line
+                return `<div style="margin-bottom: 6px;">${escapeHtml(trimmed)}</div>`;
             }
         }).join('');
 

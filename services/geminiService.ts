@@ -322,6 +322,7 @@ export const generateListeningTest = async (
        Length: Approximately 150-200 words. (Keep it concise and clear).
        The script must be strictly suitable for the '${targetLevel}' level in terms of vocabulary and sentence structure. 
        Do not use advanced words or complex grammar structures that are beyond ${targetLevel} unless necessary for the theme (in which case, keep it simple).
+       **FORMATTING RULE**: If the script is a dialogue, strictly format each line as "Speaker Name: Content". E.g., "Man: Hello." or "A: Hi there.". Use a new line for each speaker.
        ${grammarInstruction}
     
     Output Schema (JSON):
@@ -476,3 +477,6 @@ export const generateListeningTest = async (
         script: generatedScript
     };
 };
+```]]></content>
+  </change>
+</changes>
