@@ -320,7 +320,8 @@ export const generateListeningTest = async (
     Requirements:
     1. Create a natural, coherent English listening script (monologue or dialogue) incorporating the vocabulary/theme.
        Length: Approximately 150-200 words. (Keep it concise and clear).
-       The script must be strictly suitable for the '${targetLevel}' level in terms of vocabulary and sentence structure.
+       The script must be strictly suitable for the '${targetLevel}' level in terms of vocabulary and sentence structure. 
+       Do not use advanced words or complex grammar structures that are beyond ${targetLevel} unless necessary for the theme (in which case, keep it simple).
        ${grammarInstruction}
     
     Output Schema (JSON):
@@ -362,6 +363,8 @@ export const generateListeningTest = async (
     const questionsPrompt = `
     You are an expert English teacher.
     Based on the following listening script, create ${config.questionCount} multiple-choice questions.
+    Target Audience Level: ${targetLevel}.
+    Ensure the vocabulary in the questions and options is appropriate for ${targetLevel}.
 
     SCRIPT:
     "${generatedScript}"
@@ -374,7 +377,8 @@ export const generateListeningTest = async (
     
     2. For "listening-image" questions:
     - The 'options' array should contain 4 short descriptive text prompts describing the image.
-    - **IMPORTANT**: The descriptions must be for **Simple, Black and White Line Art** illustrations (e.g., "A line drawing of a cat sitting on a mat").
+    - **IMPORTANT**: The descriptions must be for **Simple, Black and White Line Art**.
+    - **CRITICAL**: When describing people, **ALWAYS specify their gender clearly** (e.g., "a boy", "a girl", "a man", "a woman") instead of using ambiguous terms like "a person" or "someone".
     - One description must match the correct answer found in the script.
     - Three descriptions must be distractors.
     - 'answer' should be the text of the correct description.
