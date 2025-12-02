@@ -43,13 +43,11 @@ export function buildTestHtml(questions: Question[]): string {
         if (!typeQuestions || typeQuestions.length === 0) return;
 
         // Section Title
-        html += `<div class="section-title" style="font-weight: bold; font-size: 1.05em; margin-top: 15px; margin-bottom: 5px; break-after: avoid; page-break-after: avoid;">[${type}] ${questionTypeTitles[type]}</div>`;
-
-        // Questions Container
-        html += '<div class="questions-container">';
+        // Flattened structure: No wrapper divs around sections to allow better pagination
+        html += `<div class="section-title" style="font-weight: bold; font-size: 1.05em; margin-top: 15px; margin-bottom: 5px;">[${type}] ${questionTypeTitles[type]}</div>`;
         
         typeQuestions.forEach((q) => {
-            html += `<div class="question-item" style="margin-bottom: 0.8em; break-inside: avoid;">`;
+            html += `<div class="question-item" style="margin-bottom: 0.8em;">`;
             
             // Question Prompt
             html += `<div class="question-text" style="display: flex; align-items: baseline;">
@@ -66,28 +64,27 @@ export function buildTestHtml(questions: Question[]): string {
                 });
                 html += `</div>`;
             } else if (q.type === 'translation' || q.type === 'fillInTheBlank' || q.type === 'reverseTranslation') {
-                 // Add a little space for writing
-                 // html += `<div style="height: 1em;"></div>`; 
+                 // Add a little space for writing if needed, but margin-bottom usually suffices
             }
 
             html += `</div>`;
             globalIndex++;
         });
-
-        html += '</div>'; // End questions-container
     });
 
     return html;
 }
 
 export function buildTestBatchHtml(testBatch: GeneratedTestData[]): string {
-    // This is used for the continuous editor view logic or raw HTML storage
-    // It basically concatenates all tests. Pagination is handled by the component.
+    // Flatten the batch structure as well. 
+    // Instead of wrapping each test in a div, we output titles and questions directly.
+    // We add margin-top to titles (except the first one) to separate tests.
     return testBatch.map((data, index) => {
-         const titleHtml = `<h1 style="text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 1em; text-decoration: underline;">${escapeHtml(data.title)}</h1>`;
+         const marginTop = index > 0 ? 'margin-top: 30mm;' : '';
+         const titleHtml = `<h1 style="text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 1em; text-decoration: underline; ${marginTop}">${escapeHtml(data.title)}</h1>`;
          const contentHtml = buildTestHtml(data.questions);
-         return `<div class="test-instance" style="${index > 0 ? 'margin-top: 30mm;' : ''}">${titleHtml}${contentHtml}</div>`;
-    }).join('<hr class="section-break" style="border: 0; margin: 0;" />'); // Replaced page-break with section-break since pagination is manual
+         return `${titleHtml}${contentHtml}`;
+    }).join('');
 }
 
 // --- Answer Sheet Builders ---
@@ -104,7 +101,7 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
         html += `<span class="answer-number" style="font-weight: bold; width: 2.5em; flex-shrink: 0;">${ans.questionIndex + 1}.</span>`;
         html += `<span class="answer-text" style="font-weight: bold; margin-right: 0.5em;">${escapeHtml(ans.answerText)}</span>`;
         if (ans.wordId) {
-            html += `<span class="answer-word-id" style="font-size: 0.85em; color: #666; margin-left: auto;">(No.${ans.wordId})</span>`;
+            html += `<span class="answer-word-id" style="font-size: 0.85em; color: #666; margin-left: 0.5em;">（単語番号：${ans.wordId}）</span>`;
         }
         html += `</div>`;
     });
@@ -164,6 +161,8 @@ export function buildPrintHtml(pages: string[], elements: DraggableElementData[]
         }
         /* Base styles matching editor */
         p { margin: 0 0 ${settings.questionSpacing}pt 0; }
+        .section-title { font-weight: bold; margin-top: 15px; margin-bottom: 5px; }
+        .question-item { margin-bottom: 0.8em; }
     `;
 
     let bodyContent = pages.map((pageHtml, index) => {
@@ -200,12 +199,7 @@ export function buildPrintHtml(pages: string[], elements: DraggableElementData[]
 }
 
 export function buildContinuousPrintHtml(pages: string[], _elements: DraggableElementData[], settings: PageStyleSettings): string {
-    // Continuous print: simply stack content, let browser paginate
     const fullContent = pages.join('');
-    // Elements are tricky in continuous flow since they are absolute positioned relative to pages.
-    // For "Simple/Continuous" print, we might ignore floating elements or try to place them.
-    // Ignoring elements for simple view is often safer or just standard flow.
-    // Let's stick to standard flow content for this mode.
     
     let style = `
         @page { size: ${settings.paperSize} ${settings.orientation}; margin: ${settings.margin}mm; }
@@ -216,9 +210,8 @@ export function buildContinuousPrintHtml(pages: string[], _elements: DraggableEl
             line-height: ${settings.lineHeight};
         }
         p { margin: 0 0 ${settings.questionSpacing}pt 0; }
-        .section-title { font-weight: bold; margin-top: 1.5em; margin-bottom: 0.5em; }
-        .question-item { margin-bottom: 1em; }
-        /* Hide pagination elements if any slipped in */
+        .section-title { font-weight: bold; margin-top: 15px; margin-bottom: 5px; }
+        .question-item { margin-bottom: 0.8em; }
         .page-break { display: none; }
     `;
 
@@ -245,7 +238,7 @@ export function buildAnswerPrintHtml(htmlContent: string, columns: number = 2): 
             align-items: baseline;
             padding: 4px 0;
             border-bottom: 1px dotted #ccc;
-            break-inside: avoid; /* Prevent splitting an answer across columns */
+            break-inside: avoid;
         }
         
         .answer-number {
@@ -260,7 +253,7 @@ export function buildAnswerPrintHtml(htmlContent: string, columns: number = 2): 
         .answer-word-id {
             font-size: 0.85em;
             color: #666;
-            margin-left: auto;
+            margin-left: 0.5em;
         }
     `;
 
