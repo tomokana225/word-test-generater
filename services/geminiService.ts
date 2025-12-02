@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
-import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig } from '../types';
+import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig, GradeLevel } from '../types';
 
 // Helper function to introduce a delay, used for retrying API calls
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -78,6 +79,40 @@ const generateOptionsForWord = async (ai: GoogleGenAI, word: string, onProgress:
     }
     // Fallback if generation fails
     return ["選択肢生成エラー", "選択肢生成エラー", "選択肢生成エラー", "選択肢生成エラー"];
+};
+
+/**
+ * Helper to generate a single image with retry logic for 429 errors.
+ */
+const generateImageWithRetry = async (ai: GoogleGenAI, prompt: string): Promise<string> => {
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts: [{ text: `Draw a simple, clear illustration of: ${prompt}` }] },
+                config: { imageConfig: { aspectRatio: "1:1" } }
+            });
+            const part = response.candidates?.[0]?.content?.parts?.[0];
+            if (part && part.inlineData && part.inlineData.data) {
+                return part.inlineData.data;
+            }
+            return "";
+        } catch (e: any) {
+            console.warn(`Image generation attempt ${attempt + 1} failed for "${prompt}":`, e.message);
+            // Check for rate limit error (429)
+            if (e.status === 429 || (e.message && e.message.includes('429'))) {
+                // Exponential backoff: 2s, 4s, 8s
+                const waitTime = 2000 * Math.pow(2, attempt);
+                await delay(waitTime);
+            } else {
+                // For other errors, log and return empty (fail soft)
+                console.error(`Non-retriable error for image "${prompt}":`, e);
+                return ""; 
+            }
+        }
+    }
+    return "";
 };
 
 /**
@@ -265,6 +300,18 @@ export const generateListeningTest = async (
 ): Promise<GeneratedTestData> => {
     const ai = new GoogleGenAI({ apiKey });
     
+    // Map internal difficulty codes to descriptive strings for the AI
+    const difficultyMap: Record<GradeLevel, string> = {
+        'jh1': 'Japanese Junior High School 1st Grade (Beginner, CEFR A1)',
+        'jh2': 'Japanese Junior High School 2nd Grade (High Beginner, CEFR A1-A2)',
+        'jh3': 'Japanese Junior High School 3rd Grade (Low Intermediate, CEFR A2)',
+        'hs1': 'Japanese High School 1st Grade (Intermediate, CEFR B1)',
+        'hs2': 'Japanese High School 2nd Grade (Upper Intermediate, CEFR B1-B2)',
+        'hs3': 'Japanese High School 3rd Grade (Advanced, CEFR B2)',
+    };
+
+    const targetLevel = difficultyMap[config.difficulty];
+
     let promptIntro = "";
     if (words.length > 0) {
         const wordListString = words.map(w => `${w.id}: ${w.word} (${w.translation})`).join('\n');
@@ -285,18 +332,28 @@ export const generateListeningTest = async (
         `;
     }
 
+    // Construct grammar instructions
+    let grammarInstruction = "";
+    if (config.grammarPoints && config.grammarPoints.length > 0) {
+        grammarInstruction = `
+        IMPORTANT: Incorporate the following grammar points naturally into the script:
+        - ${config.grammarPoints.join('\n        - ')}
+        `;
+    }
+
     onProgress("リスニング原稿を作成中...");
 
     // 1. Generate Script ONLY
     const scriptPrompt = `
     You are an expert English teacher creating a Listening Test.
-    Target Audience Level: ${config.difficulty}
+    Target Audience Level: ${targetLevel}
     ${promptIntro}
     
     Requirements:
     1. Create a natural, coherent English listening script (monologue or dialogue) incorporating the vocabulary/theme.
        Length: Approximately 150-200 words. (Keep it concise and clear).
-       The script should be suitable for the '${config.difficulty}' level.
+       The script must be strictly suitable for the '${targetLevel}' level in terms of vocabulary and sentence structure.
+       ${grammarInstruction}
     
     Output Schema (JSON):
     {
@@ -437,7 +494,7 @@ export const generateListeningTest = async (
     }
 
     return {
-        title: `Listening Test (${config.difficulty})`,
+        title: `Listening Test (${targetLevel})`,
         questions: processedQuestions,
         answers: answers,
         // No audioBase64 returned.

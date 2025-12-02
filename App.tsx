@@ -27,7 +27,8 @@ const DEFAULT_CONFIG: QuestionConfig = {
 };
 
 const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
-    difficulty: 'intermediate',
+    difficulty: 'jh2', // Default to Junior High 2
+    grammarPoints: [],
     questionCount: 5,
     includeIllustrations: false,
     testCount: 1,

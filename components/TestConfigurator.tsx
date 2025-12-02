@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { QuestionConfig, ListeningConfig } from '../types';
+import { QuestionConfig, ListeningConfig, GradeLevel } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { MinusIcon } from './icons/MinusIcon';
 import { SpinnerIcon } from './icons/SpinnerIcon';
@@ -64,6 +64,32 @@ const questionMetadata: { [key in keyof QuestionConfig]: { title: string; descri
     },
 };
 
+const GRAMMAR_OPTIONS = [
+    { id: 'be_verb', label: 'be動詞' },
+    { id: 'general_verb', label: '一般動詞' },
+    { id: 'progressive_present', label: '現在進行形' },
+    { id: 'past_tense', label: '過去形' },
+    { id: 'progressive_past', label: '過去進行形' },
+    { id: 'future', label: '未来形 (will/be going to)' },
+    { id: 'auxiliary', label: '助動詞 (can, must, etc)' },
+    { id: 'infinitive', label: '不定詞' },
+    { id: 'gerund', label: '動名詞' },
+    { id: 'comparison', label: '比較' },
+    { id: 'passive', label: '受動態' },
+    { id: 'perfect_present', label: '現在完了形' },
+    { id: 'relative_pronoun', label: '関係代名詞' },
+    { id: 'subjunctive', label: '仮定法' },
+    { id: 'participle', label: '分詞構文' },
+];
+
+const DIFFICULTY_LEVELS: { id: GradeLevel; label: string; sub: string }[] = [
+    { id: 'jh1', label: '中1', sub: 'JH 1' },
+    { id: 'jh2', label: '中2', sub: 'JH 2' },
+    { id: 'jh3', label: '中3', sub: 'JH 3' },
+    { id: 'hs1', label: '高1', sub: 'HS 1' },
+    { id: 'hs2', label: '高2', sub: 'HS 2' },
+    { id: 'hs3', label: '高3', sub: 'HS 3' },
+];
 
 const TestConfigurator: React.FC<TestConfiguratorProps> = ({ 
     config, onConfigChange, 
@@ -121,6 +147,19 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
         </div>
     );
 
+    const handleGrammarToggle = (grammarLabel: string) => {
+        if (!listeningConfig || !onListeningConfigChange) return;
+        const current = listeningConfig.grammarPoints || [];
+        const exists = current.includes(grammarLabel);
+        let newPoints;
+        if (exists) {
+            newPoints = current.filter(g => g !== grammarLabel);
+        } else {
+            newPoints = [...current, grammarLabel];
+        }
+        onListeningConfigChange({ ...listeningConfig, grammarPoints: newPoints });
+    };
+
     const renderListeningConfig = () => {
         if (!listeningConfig || !onListeningConfigChange) return null;
         return (
@@ -131,7 +170,64 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                          基本設定
                     </h3>
                     
+                    {/* Difficulty Level (Grades) */}
                     <div className="mb-6">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">難易度 (学年)</label>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            {DIFFICULTY_LEVELS.map((level) => (
+                                <label 
+                                    key={level.id}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === level.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                                >
+                                    <input 
+                                        type="radio" 
+                                        name="difficulty" 
+                                        className="hidden"
+                                        checked={listeningConfig.difficulty === level.id} 
+                                        onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: level.id })}
+                                    />
+                                    <span className="text-lg font-bold leading-none mb-1">{level.label}</span>
+                                    <span className="text-[10px] uppercase font-semibold opacity-70">{level.sub}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Grammar Points Selection */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            使用する文法 (複数選択可)
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                            {GRAMMAR_OPTIONS.map((g) => {
+                                const isSelected = listeningConfig.grammarPoints?.includes(g.label);
+                                return (
+                                    <button
+                                        key={g.id}
+                                        onClick={() => handleGrammarToggle(g.label)}
+                                        className={`px-3 py-2 rounded-md text-sm font-medium border text-left transition-all ${
+                                            isSelected 
+                                                ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
+                                                {isSelected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                            </div>
+                                            {g.label}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                            選択しない場合は、難易度に合わせてAIが自動的に決定します。
+                        </p>
+                    </div>
+
+                    {/* Theme */}
+                    <div className="mb-2">
                          <label className="block text-sm font-bold text-slate-700 mb-2">
                             テストのテーマ (任意)
                         </label>
@@ -145,51 +241,6 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                         <p className="text-xs text-slate-500 mt-1">
                             空欄の場合は、AIがランダムに日常的なテーマを選択します。
                         </p>
-                    </div>
-
-                    <div className="flex flex-col space-y-4">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">難易度</label>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <label className={`flex items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === 'beginner' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                <input 
-                                    type="radio" 
-                                    name="difficulty" 
-                                    className="hidden"
-                                    checked={listeningConfig.difficulty === 'beginner'} 
-                                    onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'beginner' })}
-                                />
-                                <div className="text-center">
-                                    <span className="block font-bold">初級</span>
-                                    <span className="text-xs opacity-75">Beginner</span>
-                                </div>
-                            </label>
-                            <label className={`flex items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === 'intermediate' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                <input 
-                                    type="radio" 
-                                    name="difficulty" 
-                                    className="hidden"
-                                    checked={listeningConfig.difficulty === 'intermediate'} 
-                                    onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'intermediate' })}
-                                />
-                                 <div className="text-center">
-                                    <span className="block font-bold">中級</span>
-                                    <span className="text-xs opacity-75">Intermediate</span>
-                                </div>
-                            </label>
-                             <label className={`flex items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === 'advanced' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                <input 
-                                    type="radio" 
-                                    name="difficulty" 
-                                    className="hidden"
-                                    checked={listeningConfig.difficulty === 'advanced'} 
-                                    onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'advanced' })}
-                                />
-                                 <div className="text-center">
-                                    <span className="block font-bold">上級</span>
-                                    <span className="text-xs opacity-75">Advanced</span>
-                                </div>
-                            </label>
-                        </div>
                     </div>
                 </div>
 

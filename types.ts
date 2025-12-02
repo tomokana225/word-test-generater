@@ -36,8 +36,11 @@ export interface QuestionConfig {
     antonym: number;
 }
 
+export type GradeLevel = 'jh1' | 'jh2' | 'jh3' | 'hs1' | 'hs2' | 'hs3';
+
 export interface ListeningConfig {
-    difficulty: 'beginner' | 'intermediate' | 'advanced';
+    difficulty: GradeLevel;
+    grammarPoints: string[]; // List of selected grammar points
     questionCount: number;
     includeIllustrations: boolean;
     testCount: number; // Number of tests to generate
