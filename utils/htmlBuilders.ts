@@ -42,144 +42,231 @@ export function buildTestHtml(questions: Question[]): string {
         const typeQuestions = groupedQuestions[type];
         if (!typeQuestions || typeQuestions.length === 0) return;
 
-        // Section Title - flattened
-        // Using a plain div instead of nested section to allow pagination to split cleanly
+        // Section Title
         html += `<div class="section-title" style="font-weight: bold; font-size: 1.05em; margin-top: 15px; margin-bottom: 5px; break-after: avoid; page-break-after: avoid;">[${type}] ${questionTypeTitles[type]}</div>`;
 
-        typeQuestions.forEach(q => {
-            // Updated style: 
-            // 1. Reduced margin-bottom to 5px to fit more questions.
-            // 2. margin-top: 0 to avoid blank lines at page tops.
-            // 3. break-inside: avoid to keep question blocks together.
-            html += `<div class="question-item" style="margin-bottom: 5px; margin-top: 0; page-break-inside: avoid; break-inside: avoid;">`;
+        // Questions Container
+        html += '<div class="questions-container">';
+        
+        typeQuestions.forEach((q) => {
+            html += `<div class="question-item" style="margin-bottom: 0.8em; break-inside: avoid;">`;
             
-            // Question prompt
-            // Removed font-weight: bold from the number by explicitly setting normal
-            html += `<div style="margin-bottom: 2px;">
-                <span style="margin-right: 6px; font-weight: normal;">${globalIndex}.</span>
-                ${q.prompt ? processPrompt(q.prompt) : processPrompt(q.promptWord || '')}
+            // Question Prompt
+            html += `<div class="question-text" style="display: flex; align-items: baseline;">
+                <span class="question-number" style="margin-right: 8px; font-weight: normal;">${globalIndex}.</span>
+                <span style="flex: 1;">${processPrompt(q.prompt || q.promptWord || '')}</span>
             </div>`;
 
-            // Options for multiple choice/synonym/antonym
+            // Options for multiple choice types
             if (['multipleChoice', 'synonym', 'antonym'].includes(q.type) && q.options) {
-                html += `<div style="margin-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px;">`;
+                html += `<div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; margin-left: 24px; font-size: 0.95em;">`;
                 q.options.forEach((opt, idx) => {
                     const label = String.fromCharCode(97 + idx); // a, b, c, d
                     html += `<div>${label}) ${escapeHtml(opt)}</div>`;
                 });
                 html += `</div>`;
+            } else if (q.type === 'translation' || q.type === 'fillInTheBlank' || q.type === 'reverseTranslation') {
+                 // Add a little space for writing
+                 // html += `<div style="height: 1em;"></div>`; 
             }
 
-            html += `</div>`; // End question-item
+            html += `</div>`;
             globalIndex++;
         });
+
+        html += '</div>'; // End questions-container
     });
 
     return html;
 }
 
 export function buildTestBatchHtml(testBatch: GeneratedTestData[]): string {
-    return testBatch.map(data => {
-        // Return a flattened structure (h1 + content) without a wrapping div.
-        // This allows the paginator to treat the header and individual questions as separate nodes,
-        // enabling proper flow across pages and preventing large blank spaces at the bottom.
-        return `
-            <h1 class="test-title" style="text-align: center; font-size: 1.4em; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px; width: 100%; margin-top: 0;">${escapeHtml(data.title)}</h1>
-            ${buildTestHtml(data.questions)}
-            <div class="test-separator" style="height: 20px; width: 100%;"></div>
-        `;
-    }).join('');
+    // This is used for the continuous editor view logic or raw HTML storage
+    // It basically concatenates all tests. Pagination is handled by the component.
+    return testBatch.map((data, index) => {
+         const titleHtml = `<h1 style="text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 1em; text-decoration: underline;">${escapeHtml(data.title)}</h1>`;
+         const contentHtml = buildTestHtml(data.questions);
+         return `<div class="test-instance" style="${index > 0 ? 'margin-top: 30mm;' : ''}">${titleHtml}${contentHtml}</div>`;
+    }).join('<hr class="section-break" style="border: 0; margin: 0;" />'); // Replaced page-break with section-break since pagination is manual
 }
 
-export function buildAnswerSheetHtml(answers: Answer[], title: string): string {
-    let html = `<div class="answer-sheet" style="page-break-inside: avoid;">
-        <h2 style="font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${escapeHtml(title)} - 解答</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; font-size: 0.9em;">`;
+// --- Answer Sheet Builders ---
+
+export function buildAnswerSheetHtml(data: GeneratedTestData): string {
+    let html = `<div class="answer-sheet-instance">`;
+    html += `<h2 style="font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px;">${escapeHtml(data.title)} - 解答</h2>`;
     
-    answers.forEach(a => {
-        const wordIdHtml = a.wordId ? `<span style="font-size: 0.85em; color: #666; margin-left: 4px;">(単語番号：${escapeHtml(a.wordId)})</span>` : '';
-        html += `<div style="border-bottom: 1px dotted #ccc; padding: 2px;">
-            <span style="font-weight: bold; margin-right: 8px;">${a.questionIndex + 1}.</span>
-            ${escapeHtml(a.answerText)}${wordIdHtml}
-        </div>`;
+    // We use a clean structure that CSS can grid-ify
+    html += `<div class="answer-grid">`;
+    
+    data.answers.forEach((ans) => {
+        html += `<div class="answer-item" style="padding: 4px 0; border-bottom: 1px dotted #ccc; display: flex; align-items: baseline;">`;
+        html += `<span class="answer-number" style="font-weight: bold; width: 2.5em; flex-shrink: 0;">${ans.questionIndex + 1}.</span>`;
+        html += `<span class="answer-text" style="font-weight: bold; margin-right: 0.5em;">${escapeHtml(ans.answerText)}</span>`;
+        if (ans.wordId) {
+            html += `<span class="answer-word-id" style="font-size: 0.85em; color: #666; margin-left: auto;">(No.${ans.wordId})</span>`;
+        }
+        html += `</div>`;
     });
 
-    html += `</div></div>`;
+    html += `</div>`; // End answer-grid
+    html += `</div>`; // End instance
     return html;
 }
 
 export function buildAnswerSheetBatchHtml(testBatch: GeneratedTestData[]): string {
-    return testBatch.map(data => buildAnswerSheetHtml(data.answers, data.title)).join('<hr style="margin: 20px 0; border: 0; border-top: 1px dashed #ccc;" />');
+    return testBatch.map(data => buildAnswerSheetHtml(data)).join('<div style="margin-top: 30px; margin-bottom: 30px; border-top: 2px dashed #ccc;"></div>');
 }
 
+// --- Printing Builders ---
+
 export function buildPrintHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
-    // Generate CSS for page size and elements
-    const style = `
+    const pageDimensions = {
+        A4: { portrait: { width: '210mm', height: '297mm' }, landscape: { width: '297mm', height: '210mm' } },
+        B5: { portrait: { width: '182mm', height: '257mm' }, landscape: { width: '257mm', height: '182mm' } },
+        Letter: { portrait: { width: '216mm', height: '279mm' }, landscape: { width: '279mm', height: '216mm' } },
+    };
+    const size = pageDimensions[settings.paperSize][settings.orientation];
+
+    let style = `
         @page { size: ${settings.paperSize} ${settings.orientation}; margin: 0; }
-        body { margin: 0; background: #fff; -webkit-print-color-adjust: exact; }
+        body { margin: 0; padding: 0; background: white; font-family: sans-serif; -webkit-print-color-adjust: exact; }
         .print-page {
             position: relative;
-            width: ${settings.orientation === 'portrait' ? '210mm' : '297mm'}; /* Approximate for A4, handled by @page mostly */
-            height: ${settings.orientation === 'portrait' ? '297mm' : '210mm'};
-            page-break-after: always;
+            width: ${size.width};
+            height: ${size.height};
             overflow: hidden;
+            page-break-after: always;
             box-sizing: border-box;
             padding: ${settings.margin}mm;
         }
-        .print-content {
-            font-size: ${settings.fontSize}pt;
-            line-height: ${settings.lineHeight};
+        .content-layer {
+            position: relative;
             width: 100%;
             height: 100%;
+            font-size: ${settings.fontSize}pt;
+            line-height: ${settings.lineHeight};
         }
-        .element { position: absolute; }
+        .element-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .draggable-element {
+            position: absolute;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+        /* Base styles matching editor */
+        p { margin: 0 0 ${settings.questionSpacing}pt 0; }
     `;
 
-    let html = `<!DOCTYPE html><html><head><style>${style}</style></head><body>`;
+    let bodyContent = pages.map((pageHtml, index) => {
+        const pageElements = elements.filter(el => el.pageIndex === index).map(el => {
+             const styles = el.styles;
+             // Convert styles to inline string
+             let styleStr = `left: ${el.x}px; top: ${el.y}px; width: ${el.width}px; height: ${el.height}px;`;
+             if (styles.border) styleStr += `border: ${styles.border};`;
+             
+             let innerContent = '';
+             if (el.type === 'text') {
+                 styleStr += `font-size: ${styles.fontSize}pt; font-weight: ${styles.fontWeight}; text-align: ${styles.textAlign}; color: ${styles.color}; text-decoration: ${styles.textDecoration};`;
+                 innerContent = el.content; // Plain text for now
+             } else if (el.type === 'shape') {
+                  if (el.shapeType === 'rectangle') {
+                      innerContent = `<svg width="100%" height="100%"><rect width="100%" height="100%" fill="${styles.backgroundColor}" stroke="${styles.borderColor}" stroke-width="${styles.borderWidth}" /></svg>`;
+                  } else if (el.shapeType === 'circle') {
+                       innerContent = `<svg width="100%" height="100%"><ellipse cx="50%" cy="50%" rx="49%" ry="49%" fill="${styles.backgroundColor}" stroke="${styles.borderColor}" stroke-width="${styles.borderWidth}" /></svg>`;
+                  }
+             }
 
-    pages.forEach((pageHtml, index) => {
-        html += `<div class="print-page">`;
-        html += `<div class="print-content">${pageHtml}</div>`;
+             return `<div class="draggable-element" style="${styleStr}">${innerContent}</div>`;
+        }).join('');
+
+        return `
+            <div class="print-page">
+                <div class="element-layer" style="z-index: 0;">${pageElements}</div>
+                <div class="content-layer" style="z-index: 1;">${pageHtml}</div>
+            </div>
+        `;
+    }).join('');
+
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${style}</style></head><body>${bodyContent}</body></html>`;
+}
+
+export function buildContinuousPrintHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
+    // Continuous print: simply stack content, let browser paginate
+    const fullContent = pages.join('');
+    // Elements are tricky in continuous flow since they are absolute positioned relative to pages.
+    // For "Simple/Continuous" print, we might ignore floating elements or try to place them.
+    // Ignoring elements for simple view is often safer or just standard flow.
+    // Let's stick to standard flow content for this mode.
+    
+    let style = `
+        @page { size: ${settings.paperSize} ${settings.orientation}; margin: ${settings.margin}mm; }
+        body { 
+            margin: 0; 
+            font-family: sans-serif; 
+            font-size: ${settings.fontSize}pt;
+            line-height: ${settings.lineHeight};
+        }
+        p { margin: 0 0 ${settings.questionSpacing}pt 0; }
+        .section-title { font-weight: bold; margin-top: 1.5em; margin-bottom: 0.5em; }
+        .question-item { margin-bottom: 1em; }
+        /* Hide pagination elements if any slipped in */
+        .page-break { display: none; }
+    `;
+
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${style}</style></head><body>${fullContent}</body></html>`;
+}
+
+export function buildAnswerPrintHtml(htmlContent: string, columns: number = 2): string {
+    let style = `
+        @page { size: A4; margin: 20mm; }
+        body { margin: 0; padding: 20px; font-family: sans-serif; }
+        h2 { text-align: center; }
+        .answer-sheet-instance { break-after: page; }
+        .answer-sheet-instance:last-child { break-after: auto; }
         
-        // Render elements for this page
-        const pageElements = elements.filter(el => el.pageIndex === index);
-        pageElements.forEach(el => {
-            const { x, y, width, height, styles, content, type, shapeType } = el;
-            
-            let elStyle = `left:${x}px; top:${y}px; width:${width}px; height:${height}px;`;
-            if (styles.border) elStyle += `border:${styles.border};`;
-            
-            if (type === 'text') {
-                 elStyle += `font-size:${styles.fontSize}pt; font-weight:${styles.fontWeight}; text-align:${styles.textAlign}; color:${styles.color}; text-decoration:${styles.textDecoration}; display: flex; align-items: center;`;
-                 html += `<div class="element" style="${elStyle}">${escapeHtml(content)}</div>`;
-            } else if (type === 'shape') {
-                 html += `<div class="element" style="${elStyle}">
-                    <svg width="100%" height="100%">
-                        ${shapeType === 'circle' 
-                            ? `<ellipse cx="50%" cy="50%" rx="${(width - (styles.borderWidth||0))/2}" ry="${(height - (styles.borderWidth||0))/2}" fill="${styles.backgroundColor}" stroke="${styles.borderColor}" stroke-width="${styles.borderWidth}" />`
-                            : `<rect x="${(styles.borderWidth||0)/2}" y="${(styles.borderWidth||0)/2}" width="${width - (styles.borderWidth||0)}" height="${height - (styles.borderWidth||0)}" fill="${styles.backgroundColor}" stroke="${styles.borderColor}" stroke-width="${styles.borderWidth}" />`
-                        }
-                    </svg>
-                 </div>`;
-            }
-        });
-
-        html += `</div>`;
-    });
-
-    html += `</body></html>`;
-    return html;
-}
-
-export function buildContinuousPrintHtml(pages: string[], _elements: DraggableElementData[], settings: PageStyleSettings): string {
-    const style = `
-        @page { size: auto; margin: ${settings.margin}mm; }
-        body { font-family: sans-serif; line-height: ${settings.lineHeight}; font-size: ${settings.fontSize}pt; }
-        .question-item { break-inside: avoid; page-break-inside: avoid; }
+        .answer-grid {
+            display: grid;
+            grid-template-columns: ${columns === 2 ? '1fr 1fr' : '1fr'};
+            column-gap: 2rem;
+            row-gap: 0;
+        }
+        
+        .answer-item {
+            display: flex;
+            align-items: baseline;
+            padding: 4px 0;
+            border-bottom: 1px dotted #ccc;
+            break-inside: avoid; /* Prevent splitting an answer across columns */
+        }
+        
+        .answer-number {
+            font-weight: bold;
+            width: 2.5em;
+            flex-shrink: 0;
+        }
+        .answer-text {
+            font-weight: bold;
+            margin-right: 0.5em;
+        }
+        .answer-word-id {
+            font-size: 0.85em;
+            color: #666;
+            margin-left: auto;
+        }
     `;
-    return `<html><head><style>${style}</style></head><body>${pages.join('')}</body></html>`;
+
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${style}</style></head><body>${htmlContent}</body></html>`;
 }
 
-export function buildCopyableHtml(pages: string[], _elements: DraggableElementData[], _settings: PageStyleSettings): string {
-    return pages.join('<br/><br/>');
+export function buildCopyableHtml(pages: string[], elements: DraggableElementData[], settings: PageStyleSettings): string {
+    return pages.join('<br><hr><br>');
 }

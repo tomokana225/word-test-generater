@@ -1,3 +1,4 @@
+
 import React, { ReactNode, useEffect, useState } from 'react';
 import { PrintIcon } from './icons/PrintIcon';
 
@@ -5,10 +6,11 @@ interface PrintPreviewModalProps {
     onClose: () => void;
     onPrint: () => void;
     onModeChange: (mode: 'paged' | 'continuous') => void;
-    children: ReactNode; // Expecting an iframe now
+    children: ReactNode; 
+    showLayoutToggle?: boolean;
 }
 
-const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint, onModeChange, children }) => {
+const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint, onModeChange, children, showLayoutToggle = true }) => {
     const [mode, setMode] = useState<'paged' | 'continuous'>('paged');
 
     // Add a keyboard listener for the Escape key to close the modal
@@ -41,20 +43,22 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ onClose, onPrint,
                     <div className="flex items-center space-x-4">
                         <h2 className="text-xl font-bold text-slate-800">印刷プレビュー</h2>
                         
-                        <div className="flex bg-slate-200 rounded-lg p-1 text-sm font-medium">
-                             <button 
-                                onClick={() => handleModeChange('paged')}
-                                className={`px-3 py-1.5 rounded-md transition-all ${mode === 'paged' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                レイアウト (ページ)
-                            </button>
-                            <button 
-                                onClick={() => handleModeChange('continuous')}
-                                className={`px-3 py-1.5 rounded-md transition-all ${mode === 'continuous' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                簡易表示 (連続)
-                            </button>
-                        </div>
+                        {showLayoutToggle && (
+                            <div className="flex bg-slate-200 rounded-lg p-1 text-sm font-medium">
+                                 <button 
+                                    onClick={() => handleModeChange('paged')}
+                                    className={`px-3 py-1.5 rounded-md transition-all ${mode === 'paged' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    レイアウト (ページ)
+                                </button>
+                                <button 
+                                    onClick={() => handleModeChange('continuous')}
+                                    className={`px-3 py-1.5 rounded-md transition-all ${mode === 'continuous' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    簡易表示 (連続)
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <button onClick={onClose} className="text-2xl leading-none text-slate-500 hover:text-slate-800">&times;</button>
                 </div>

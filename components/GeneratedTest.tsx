@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
     GeneratedTestData,
@@ -11,6 +12,7 @@ import {
     buildPrintHtml,
     buildCopyableHtml,
     buildContinuousPrintHtml,
+    buildAnswerPrintHtml,
 } from '../utils/htmlBuilders';
 import Ribbon from './Ribbon';
 import DraggableElement from './DraggableElement';
@@ -18,6 +20,7 @@ import PrintPreviewModal from './PrintPreviewModal';
 import AnswerSheet from './AnswerSheet';
 import ErrorDisplay from './ErrorDisplay';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { LayoutGridIcon } from './icons/LayoutGridIcon';
 
 const DEFAULT_PAGE_SETTINGS: PageStyleSettings = {
     fontSize: 10.5,
@@ -70,6 +73,9 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     
     // New state for Continuous Editor View
     const [isContinuousView, setIsContinuousView] = useState(false);
+    
+    // State for Answer Sheet
+    const [answerColumns, setAnswerColumns] = useState<1 | 2>(2);
 
     const editorRefs = useRef<(HTMLDivElement | null)[]>([]);
     const paginatorRef = useRef<HTMLDivElement>(null);
@@ -205,15 +211,22 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     const handleUpdateElement = (id: string, updates: Partial<DraggableElementData>) => { setElements(elements.map(el => el.id === id ? { ...el, ...updates } : el)); };
     const handleDeleteElement = (id: string) => { setElements(elements.filter(el => el.id !== id)); recordHistory(); };
     
-    // Initial Print Handler - defaults to Paged
+    // Initial Print Handler
     const handlePrint = () => { 
-        const finalHtml = buildPrintHtml(pages, elements, pageSettings); 
-        setPrintContent(finalHtml); 
+        if (activeView === 'answers') {
+            const finalHtml = buildAnswerPrintHtml(answersHtml, answerColumns);
+            setPrintContent(finalHtml);
+        } else {
+            const finalHtml = buildPrintHtml(pages, elements, pageSettings); 
+            setPrintContent(finalHtml); 
+        }
         setIsPrintPreviewOpen(true); 
     };
 
     // Handler to switch modes inside the modal
     const handlePreviewModeChange = (mode: 'paged' | 'continuous') => {
+        if (activeView === 'answers') return; // Answer view uses a fixed layout
+
         if (mode === 'paged') {
             setPrintContent(buildPrintHtml(pages, elements, pageSettings));
         } else {
@@ -292,6 +305,26 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                         </label>
                     </div>
                 )}
+                
+                {activeView === 'answers' && (
+                     <div className="flex items-center space-x-2 py-2">
+                        <span className="text-sm font-medium text-slate-600">表示列数:</span>
+                        <div className="flex bg-slate-100 rounded-lg p-1">
+                            <button
+                                onClick={() => setAnswerColumns(1)}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${answerColumns === 1 ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                1列
+                            </button>
+                            <button
+                                onClick={() => setAnswerColumns(2)}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${answerColumns === 2 ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                2列
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="mt-6">
@@ -315,7 +348,6 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                                     dangerouslySetInnerHTML={{ __html: documentHtml }} 
                                     onInput={(e) => {
                                         setDocumentHtml(e.currentTarget.innerHTML);
-                                        // Note: Pagination recalculates in background but view is unified
                                     }}
                                     className="w-full h-full outline-none" 
                                     style={{ 
@@ -323,12 +355,6 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                                         lineHeight: pageSettings.lineHeight 
                                     }} 
                                 />
-                                {/* Draggable elements might be misaligned in continuous view, hiding or showing on first page context only could be tricky. 
-                                    For now, we render them based on page 0 logic or hide them to avoid confusion. 
-                                    Let's render them all relative to the top, but since Y is relative to page, this is hard.
-                                    Decision: Hide elements in continuous view or warn user. For smooth UX, let's keep it simple: 
-                                    Continuous view is for text editing flow. Elements are page-specific. 
-                                */}
                             </div>
                         ) : (
                             /* Paged View Mode (Default) */
@@ -364,7 +390,7 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                     </div>
                 )}
                 {activeView === 'answers' && (
-                    <AnswerSheet htmlContent={answersHtml} />
+                    <AnswerSheet htmlContent={answersHtml} columns={answerColumns} />
                 )}
             </div>
             
@@ -373,6 +399,7 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                     onClose={() => setIsPrintPreviewOpen(false)} 
                     onPrint={doPrint}
                     onModeChange={handlePreviewModeChange}
+                    showLayoutToggle={activeView === 'test'}
                 >
                     <iframe ref={printIframeRef} srcDoc={printContent} title="Print Preview" className="w-full h-full border-0" />
                 </PrintPreviewModal>
