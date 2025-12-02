@@ -94,12 +94,13 @@ export function buildTestBatchHtml(testBatch: GeneratedTestData[]): string {
 export function buildAnswerSheetHtml(answers: Answer[], title: string): string {
     let html = `<div class="answer-sheet" style="page-break-inside: avoid;">
         <h2 style="font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${escapeHtml(title)} - 解答</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; font-size: 0.9em;">`;
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; font-size: 0.9em;">`;
     
     answers.forEach(a => {
+        const wordIdHtml = a.wordId ? `<span style="font-size: 0.85em; color: #666; margin-left: 4px;">(単語番号：${escapeHtml(a.wordId)})</span>` : '';
         html += `<div style="border-bottom: 1px dotted #ccc; padding: 2px;">
             <span style="font-weight: bold; margin-right: 8px;">${a.questionIndex + 1}.</span>
-            ${escapeHtml(a.answerText)}
+            ${escapeHtml(a.answerText)}${wordIdHtml}
         </div>`;
     });
 
