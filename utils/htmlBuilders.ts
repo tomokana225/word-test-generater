@@ -123,9 +123,27 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
     
     // Add Script if present (Listening Test)
     if (data.script) {
-        html += `<div class="listening-script" style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-size: 0.9em; line-height: 1.6;">
-            <strong style="display: block; margin-bottom: 5px; color: #4b5563;">[Listening Script]</strong>
-            ${escapeHtml(data.script).replace(/\n/g, '<br/>')}
+        // Format script to handle newlines and speakers
+        const formattedScript = data.script.split('\n').map(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+            
+            // Check for speaker pattern like "Man: " or "A: "
+            const match = trimmed.match(/^([^:]{1,20}):\s*(.*)$/);
+            if (match) {
+                const speaker = escapeHtml(match[1]);
+                const content = escapeHtml(match[2]);
+                return `<div style="margin-bottom: 4px; padding-left: 1.2em; text-indent: -1.2em;">
+                    <span style="font-weight: bold; color: #374151;">${speaker}:</span> ${content}
+                </div>`;
+            } else {
+                return `<div style="margin-bottom: 4px;">${escapeHtml(trimmed)}</div>`;
+            }
+        }).join('');
+
+        html += `<div class="listening-script" style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-size: 0.9em; line-height: 1.6; border-radius: 6px;">
+            <strong style="display: block; margin-bottom: 8px; color: #4b5563; border-bottom: 1px dashed #d1d5db; padding-bottom: 4px;">[Listening Script]</strong>
+            <div style="color: #1f2937;">${formattedScript}</div>
         </div>`;
     }
 
