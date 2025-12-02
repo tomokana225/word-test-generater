@@ -23,13 +23,23 @@ const questionTypeTitles: { [key: string]: string } = {
     fillInTheBlank: '次の日本語訳に合う英単語を答えなさい。',
     synonym: '次の英単語の類義語として最も適切なものを、選択肢 a) ～ d) から一つ選びなさい。',
     antonym: '次の英単語の対義語として最も適切なものを、選択肢 a) ～ d) から一つ選びなさい。',
+    listening: '英語を聞いて、質問に対する答えとして最も適切なものを、選択肢 a) ～ d) から一つ選びなさい。',
+    'listening-image': '英語を聞いて、質問に対する答えとして最も適切なイラストを、選択肢 a) ～ d) から一つ選びなさい。',
 };
 
-const questionOrder: string[] = ['translation', 'reverseTranslation', 'multipleChoice', 'fillInTheBlank', 'synonym', 'antonym'];
+const questionOrder: string[] = ['listening', 'listening-image', 'translation', 'reverseTranslation', 'multipleChoice', 'fillInTheBlank', 'synonym', 'antonym'];
 
-export function buildTestHtml(questions: Question[]): string {
+export function buildTestHtml(questions: Question[], audioBase64?: string): string {
     let html = '';
     let globalIndex = 1;
+
+    // Add Audio Player if available (only visible on screen, hidden in print via CSS)
+    if (audioBase64) {
+        html += `<div class="audio-player-container no-print" style="margin-bottom: 20px; padding: 10px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+            <p style="margin: 0 0 5px 0; font-weight: bold; color: #0284c7;">🔊 リスニング音声</p>
+            <audio controls src="data:audio/mp3;base64,${audioBase64}" style="width: 100%;"></audio>
+        </div>`;
+    }
 
     // Sort questions by type
     const groupedQuestions: { [key: string]: Question[] } = {};
@@ -43,8 +53,7 @@ export function buildTestHtml(questions: Question[]): string {
         if (!typeQuestions || typeQuestions.length === 0) return;
 
         // Section Title
-        // Flattened structure: No wrapper divs around sections to allow better pagination
-        html += `<div class="section-title" style="font-weight: bold; font-size: 1.05em; margin-top: 15px; margin-bottom: 5px;">[${type}] ${questionTypeTitles[type]}</div>`;
+        html += `<div class="section-title" style="font-weight: bold; font-size: 1.05em; margin-top: 15px; margin-bottom: 5px;">[${type.includes('listening') ? 'listening' : type}] ${questionTypeTitles[type]}</div>`;
         
         typeQuestions.forEach((q) => {
             html += `<div class="question-item" style="margin-bottom: 0.8em;">`;
@@ -55,16 +64,26 @@ export function buildTestHtml(questions: Question[]): string {
                 <span style="flex: 1;">${processPrompt(q.prompt || q.promptWord || '')}</span>
             </div>`;
 
-            // Options for multiple choice types
-            if (['multipleChoice', 'synonym', 'antonym'].includes(q.type) && q.options) {
+            // Options handling
+            if (q.type === 'listening-image' && q.imageOptions) {
+                // Image Options
+                html += `<div class="options-grid image-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; margin-left: 24px;">`;
+                q.imageOptions.forEach((imgBase64, idx) => {
+                    const label = String.fromCharCode(97 + idx); // a, b, c, d
+                    html += `<div style="text-align: center;">
+                        <div style="font-weight: bold; margin-bottom: 2px;">${label})</div>
+                        ${imgBase64 ? `<img src="data:image/png;base64,${imgBase64}" style="max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; max-height: 150px;" />` : '<div style="border:1px dashed #ccc; padding:20px;">Image Error</div>'}
+                    </div>`;
+                });
+                html += `</div>`;
+            } else if (['multipleChoice', 'synonym', 'antonym', 'listening'].includes(q.type) && q.options) {
+                // Text Options
                 html += `<div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; margin-left: 24px; font-size: 0.95em;">`;
                 q.options.forEach((opt, idx) => {
                     const label = String.fromCharCode(97 + idx); // a, b, c, d
                     html += `<div>${label}) ${escapeHtml(opt)}</div>`;
                 });
                 html += `</div>`;
-            } else if (q.type === 'translation' || q.type === 'fillInTheBlank' || q.type === 'reverseTranslation') {
-                 // Add a little space for writing if needed, but margin-bottom usually suffices
             }
 
             html += `</div>`;
@@ -76,13 +95,10 @@ export function buildTestHtml(questions: Question[]): string {
 }
 
 export function buildTestBatchHtml(testBatch: GeneratedTestData[]): string {
-    // Flatten the batch structure as well. 
-    // Instead of wrapping each test in a div, we output titles and questions directly.
-    // We add margin-top to titles (except the first one) to separate tests.
     return testBatch.map((data, index) => {
          const marginTop = index > 0 ? 'margin-top: 30mm;' : '';
          const titleHtml = `<h1 style="text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 1em; text-decoration: underline; ${marginTop}">${escapeHtml(data.title)}</h1>`;
-         const contentHtml = buildTestHtml(data.questions);
+         const contentHtml = buildTestHtml(data.questions, data.audioBase64);
          return `${titleHtml}${contentHtml}`;
     }).join('');
 }
@@ -93,7 +109,14 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
     let html = `<div class="answer-sheet-instance">`;
     html += `<h2 style="font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 5px;">${escapeHtml(data.title)} - 解答</h2>`;
     
-    // We use a clean structure that CSS can grid-ify
+    // Add Script if present (Listening Test)
+    if (data.script) {
+        html += `<div class="listening-script" style="margin-bottom: 20px; padding: 15px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-size: 0.9em; line-height: 1.6;">
+            <strong style="display: block; margin-bottom: 5px; color: #4b5563;">[Listening Script]</strong>
+            ${escapeHtml(data.script).replace(/\n/g, '<br/>')}
+        </div>`;
+    }
+
     html += `<div class="answer-grid">`;
     
     data.answers.forEach((ans) => {
@@ -101,19 +124,29 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
         const question = data.questions[ans.questionIndex];
         let displayAnswer = escapeHtml(ans.answerText);
 
-        // If the question is multiple choice, find the option index and prepend the label (a, b, c...)
-        if (question && ['multipleChoice', 'synonym', 'antonym'].includes(question.type) && question.options) {
-            const optionIndex = question.options.indexOf(ans.answerText);
-            if (optionIndex !== -1) {
-                const label = String.fromCharCode(97 + optionIndex); // a, b, c, d...
-                displayAnswer = `${label}) ${displayAnswer}`;
+        // If the question is multiple choice (text or image), find the option index
+        if (question) {
+            if (question.type === 'listening-image' && question.options) {
+                // For image questions, the answer text matches one of the descriptions used to generate images
+                const optionIndex = question.options.indexOf(ans.answerText);
+                 if (optionIndex !== -1) {
+                    const label = String.fromCharCode(97 + optionIndex);
+                    // For image questions, just show the label (e.g., "a)") because the text is hidden from student
+                    displayAnswer = `${label})`; 
+                }
+            } else if (['multipleChoice', 'synonym', 'antonym', 'listening'].includes(question.type) && question.options) {
+                const optionIndex = question.options.indexOf(ans.answerText);
+                if (optionIndex !== -1) {
+                    const label = String.fromCharCode(97 + optionIndex);
+                    displayAnswer = `${label}) ${displayAnswer}`;
+                }
             }
         }
 
         html += `<div class="answer-item" style="padding: 4px 0; border-bottom: 1px dotted #ccc; display: flex; align-items: baseline;">`;
         html += `<span class="answer-number" style="font-weight: bold; width: 2.5em; flex-shrink: 0;">${ans.questionIndex + 1}.</span>`;
         html += `<span class="answer-text" style="font-weight: bold; margin-right: 0.5em;">${displayAnswer}</span>`;
-        if (ans.wordId) {
+        if (ans.wordId && ans.wordId !== "-" && ans.wordId !== "Listening") {
             html += `<span class="answer-word-id" style="font-size: 0.85em; color: #666; margin-left: 0.5em;">（単語番号：${ans.wordId}）</span>`;
         }
         html += `</div>`;
@@ -176,6 +209,10 @@ export function buildPrintHtml(pages: string[], elements: DraggableElementData[]
         p { margin: 0 0 ${settings.questionSpacing}pt 0; }
         .section-title { font-weight: bold; margin-top: 15px; margin-bottom: 5px; }
         .question-item { margin-bottom: 0.8em; }
+        
+        .no-print { display: none; }
+        .image-options { grid-template-columns: 1fr 1fr; }
+        .image-options img { max-height: 40mm; }
     `;
 
     let bodyContent = pages.map((pageHtml, index) => {
@@ -226,6 +263,7 @@ export function buildContinuousPrintHtml(pages: string[], _elements: DraggableEl
         .section-title { font-weight: bold; margin-top: 15px; margin-bottom: 5px; }
         .question-item { margin-bottom: 0.8em; }
         .page-break { display: none; }
+        .no-print { display: none; }
     `;
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${style}</style></head><body>${fullContent}</body></html>`;
@@ -267,6 +305,13 @@ export function buildAnswerPrintHtml(htmlContent: string, columns: number = 2): 
             font-size: 0.85em;
             color: #666;
             margin-left: 0.5em;
+        }
+        .listening-script {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-size: 0.85em;
+            background-color: #f5f5f5;
         }
     `;
 

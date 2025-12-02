@@ -1,4 +1,4 @@
-// FIX: Removed self-import of `WordPair` which conflicts with the local declaration.
+
 export interface WordPair {
     id: string;
     word: string;
@@ -23,6 +23,8 @@ export interface GeneratedTestData {
     title: string;
     questions: Question[];
     answers: Answer[];
+    audioBase64?: string; // For listening tests
+    script?: string;      // For listening tests (answer key)
 }
 
 export interface QuestionConfig {
@@ -34,19 +36,26 @@ export interface QuestionConfig {
     antonym: number;
 }
 
+export interface ListeningConfig {
+    difficulty: 'beginner' | 'intermediate' | 'advanced';
+    questionCount: number;
+    includeIllustrations: boolean;
+}
+
 export interface Question {
-    type: 'translation' | 'reverseTranslation' | 'multipleChoice' | 'fillInTheBlank' | 'synonym' | 'antonym';
+    type: 'translation' | 'reverseTranslation' | 'multipleChoice' | 'fillInTheBlank' | 'synonym' | 'antonym' | 'listening' | 'listening-image';
     prompt?: string;
     promptWord?: string;
     options?: string[];
+    imageOptions?: string[]; // Array of base64 image strings for options
     answer: string;
-    wordId?: string; // The ID from the original WordPair
+    wordId?: string; 
 }
 
 export interface Answer {
     questionIndex: number;
     answerText: string;
-    wordId?: string; // The ID from the original WordPair
+    wordId?: string;
 }
 
 export interface AppError {

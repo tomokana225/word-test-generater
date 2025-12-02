@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import WordSourceSelector from './components/WordSourceSelector';
 import TestConfigurator from './components/TestConfigurator';
@@ -9,8 +10,8 @@ import Stepper from './components/Stepper';
 import WordListManagerModal from './components/WordListManagerModal';
 import { SettingsIcon } from './components/icons/SettingsIcon';
 import { useApiKey } from './contexts/ApiKeyContext';
-import { generateTest } from './services/geminiService';
-import type { QuestionConfig, AppError, WordList, TestRange, GeneratedTestData } from './types';
+import { generateTest, generateListeningTest } from './services/geminiService';
+import type { QuestionConfig, AppError, WordList, TestRange, GeneratedTestData, ListeningConfig } from './types';
 
 const VOCABULARY_LISTS_KEY = 'vocabularyLists';
 const QUESTION_CONFIG_KEY = 'questionConfig';
@@ -22,6 +23,12 @@ const DEFAULT_CONFIG: QuestionConfig = {
     fillInTheBlank: 3,
     synonym: 0,
     antonym: 0,
+};
+
+const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
+    difficulty: 'intermediate',
+    questionCount: 5,
+    includeIllustrations: false
 };
 
 function App() {
@@ -40,6 +47,11 @@ function App() {
         }
         return DEFAULT_CONFIG;
     });
+    
+    // Listening Config State
+    const [testMode, setTestMode] = useState<'vocabulary' | 'listening'>('vocabulary');
+    const [listeningConfig, setListeningConfig] = useState<ListeningConfig>(DEFAULT_LISTENING_CONFIG);
+
     const [testBatchData, setTestBatchData] = useState<GeneratedTestData[] | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [progressMessage, setProgressMessage] = useState('');
@@ -132,9 +144,16 @@ function App() {
                     continue;
                 }
 
-                const result = await generateTest(apiKey, wordsForRange, config, (msg) => {
-                     setProgressMessage(`テスト ${i + 1}/${testRanges.length} (${range.name}): ${msg}`);
-                });
+                let result: GeneratedTestData;
+                if (testMode === 'listening') {
+                    result = await generateListeningTest(apiKey, wordsForRange, listeningConfig, (msg) => {
+                        setProgressMessage(`リスニングテスト ${i + 1}/${testRanges.length} (${range.name}): ${msg}`);
+                    });
+                } else {
+                    result = await generateTest(apiKey, wordsForRange, config, (msg) => {
+                         setProgressMessage(`テスト ${i + 1}/${testRanges.length} (${range.name}): ${msg}`);
+                    });
+                }
 
                 results.push({ ...result, title: range.name });
             }
@@ -188,7 +207,11 @@ function App() {
             case 2:
                 return <TestConfigurator 
                     config={config} 
-                    onConfigChange={handleConfigChange} 
+                    onConfigChange={handleConfigChange}
+                    listeningConfig={listeningConfig}
+                    onListeningConfigChange={setListeningConfig}
+                    mode={testMode}
+                    onModeChange={setTestMode}
                     onGenerateTest={handleGenerateTest} 
                     isGenerating={isGenerating} 
                     isApiKeyValid={isApiKeyValid} 

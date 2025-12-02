@@ -1,5 +1,6 @@
-import React from 'react';
-import { QuestionConfig } from '../types';
+
+import React, { useState } from 'react';
+import { QuestionConfig, ListeningConfig } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { MinusIcon } from './icons/MinusIcon';
 import { SpinnerIcon } from './icons/SpinnerIcon';
@@ -11,6 +12,13 @@ import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
 interface TestConfiguratorProps {
     config: QuestionConfig;
     onConfigChange: (newConfig: QuestionConfig) => void;
+    
+    // New Props for Listening
+    listeningConfig?: ListeningConfig;
+    onListeningConfigChange?: (newConfig: ListeningConfig) => void;
+    mode: 'vocabulary' | 'listening';
+    onModeChange: (mode: 'vocabulary' | 'listening') => void;
+
     onGenerateTest: () => void;
     isGenerating: boolean;
     isApiKeyValid: boolean;
@@ -59,14 +67,162 @@ const questionMetadata: { [key in keyof QuestionConfig]: { title: string; descri
 
 
 const TestConfigurator: React.FC<TestConfiguratorProps> = ({ 
-    config, onConfigChange, onGenerateTest, isGenerating, isApiKeyValid, onBack, rangesCount 
+    config, onConfigChange, 
+    listeningConfig, onListeningConfigChange, mode, onModeChange,
+    onGenerateTest, isGenerating, isApiKeyValid, onBack, rangesCount 
 }) => {
     const handleCountChange = (type: keyof QuestionConfig, delta: number) => {
         const newCount = Math.max(0, config[type] + delta);
         onConfigChange({ ...config, [type]: newCount });
     };
 
-    const totalQuestions = Object.values(config).reduce((sum: number, count: number) => sum + count, 0);
+    const totalQuestions = mode === 'vocabulary' 
+        ? Object.values(config).reduce((sum: number, count: number) => sum + count, 0)
+        : (listeningConfig?.questionCount || 0);
+
+    const renderVocabularyConfig = () => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {(Object.keys(config) as Array<keyof QuestionConfig>).map((type) => {
+                const meta = questionMetadata[type];
+                const Icon = meta.icon;
+                return (
+                    <div key={type} className={`bg-white rounded-xl border transition-all duration-200 flex flex-col ${config[type] > 0 ? 'border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}>
+                        <div className="p-4 flex-grow">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className={`p-2 rounded-lg ${meta.colorClass}`}>
+                                    <Icon className="w-6 h-6" />
+                                </div>
+                                <h3 className="font-bold text-slate-800">{meta.title}</h3>
+                            </div>
+                            <p className="text-xs text-slate-500 leading-relaxed min-h-[2.5em]">
+                                {meta.description}
+                            </p>
+                        </div>
+                        <div className="p-3 bg-slate-50 border-t border-slate-100 rounded-b-xl flex justify-between items-center">
+                            <button 
+                                onClick={() => handleCountChange(type, -1)} 
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-50"
+                                disabled={config[type] === 0}
+                            >
+                                <MinusIcon className="w-5 h-5" />
+                            </button>
+                            <span className={`text-2xl font-bold w-12 text-center ${config[type] > 0 ? 'text-slate-800' : 'text-slate-300'}`}>
+                                {config[type]}
+                            </span>
+                            <button 
+                                onClick={() => handleCountChange(type, 1)} 
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+
+    const renderListeningConfig = () => {
+        if (!listeningConfig || !onListeningConfigChange) return null;
+        return (
+            <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                         <span className="bg-indigo-100 text-indigo-700 p-1.5 rounded-lg"><LanguageIcon className="w-5 h-5" /></span>
+                         難易度設定
+                    </h3>
+                    <div className="flex flex-col space-y-4">
+                        <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                            <input 
+                                type="radio" 
+                                name="difficulty" 
+                                checked={listeningConfig.difficulty === 'beginner'} 
+                                onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'beginner' })}
+                                className="w-4 h-4 text-indigo-600"
+                            />
+                            <div>
+                                <span className="block font-bold text-slate-700">初級 (Beginner)</span>
+                                <span className="text-xs text-slate-500">ゆっくりとしたスピード、基本的な語彙</span>
+                            </div>
+                        </label>
+                        <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                            <input 
+                                type="radio" 
+                                name="difficulty" 
+                                checked={listeningConfig.difficulty === 'intermediate'} 
+                                onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'intermediate' })}
+                                className="w-4 h-4 text-indigo-600"
+                            />
+                             <div>
+                                <span className="block font-bold text-slate-700">中級 (Intermediate)</span>
+                                <span className="text-xs text-slate-500">標準的なスピード、やや複雑な文法</span>
+                            </div>
+                        </label>
+                         <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                            <input 
+                                type="radio" 
+                                name="difficulty" 
+                                checked={listeningConfig.difficulty === 'advanced'} 
+                                onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'advanced' })}
+                                className="w-4 h-4 text-indigo-600"
+                            />
+                             <div>
+                                <span className="block font-bold text-slate-700">上級 (Advanced)</span>
+                                <span className="text-xs text-slate-500">ナチュラルスピード、高度な語彙</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                             <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg"><ListBulletIcon className="w-5 h-5" /></span>
+                             問題数
+                        </h3>
+                         <div className="flex items-center justify-between">
+                            <button 
+                                onClick={() => onListeningConfigChange({ ...listeningConfig, questionCount: Math.max(1, listeningConfig.questionCount - 1) })} 
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            >
+                                <MinusIcon className="w-5 h-5" />
+                            </button>
+                            <span className="text-3xl font-bold text-slate-800">{listeningConfig.questionCount}</span>
+                            <button 
+                                onClick={() => onListeningConfigChange({ ...listeningConfig, questionCount: Math.min(20, listeningConfig.questionCount + 1) })} 
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                             <span className="bg-purple-100 text-purple-700 p-1.5 rounded-lg"><PencilSquareIcon className="w-5 h-5" /></span>
+                             オプション
+                        </h3>
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <div className="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in">
+                                <input 
+                                    type="checkbox" 
+                                    name="illustrations" 
+                                    className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 checked:right-0 checked:border-indigo-600 transition-all duration-300"
+                                    checked={listeningConfig.includeIllustrations}
+                                    onChange={(e) => onListeningConfigChange({ ...listeningConfig, includeIllustrations: e.target.checked })}
+                                />
+                                <label className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${listeningConfig.includeIllustrations ? 'bg-indigo-600' : 'bg-slate-300'}`}></label>
+                            </div>
+                            <span className="font-bold text-slate-700">イラスト選択肢を含める</span>
+                        </label>
+                        <p className="text-xs text-slate-500 mt-2">
+                            AIが選択肢の画像を生成します。(生成に時間がかかります)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -76,10 +232,10 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                             <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                            問題形式と数の設定
+                            テスト形式の設定
                         </h2>
                         <p className="text-slate-600 mt-2 ml-10">
-                            ステップ1で指定した <span className="font-semibold">{rangesCount}</span> つのテスト範囲それぞれに対して、以下の構成で問題を作成します。
+                            ステップ1で指定した <span className="font-semibold">{rangesCount}</span> つの範囲について、テストの種類を選択してください。
                         </p>
                     </div>
                      <div className="flex items-center bg-slate-50 px-4 py-3 rounded-lg border border-slate-200 self-start md:self-center">
@@ -89,6 +245,22 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                         </span>
                         <span className="text-sm text-slate-400 ml-1">問 / テスト</span>
                     </div>
+                </div>
+
+                {/* Mode Toggles */}
+                <div className="mt-6 flex space-x-1 bg-slate-100 p-1 rounded-lg w-full sm:w-auto self-start inline-flex">
+                    <button
+                        onClick={() => onModeChange('vocabulary')}
+                        className={`flex-1 sm:flex-none px-6 py-2 rounded-md text-sm font-bold transition-all ${mode === 'vocabulary' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        単語テスト
+                    </button>
+                    <button
+                        onClick={() => onModeChange('listening')}
+                        className={`flex-1 sm:flex-none px-6 py-2 rounded-md text-sm font-bold transition-all ${mode === 'listening' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        リスニングテスト (AI生成)
+                    </button>
                 </div>
             </div>
 
@@ -105,45 +277,7 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {(Object.keys(config) as Array<keyof QuestionConfig>).map((type) => {
-                        const meta = questionMetadata[type];
-                        const Icon = meta.icon;
-                        return (
-                            <div key={type} className={`bg-white rounded-xl border transition-all duration-200 flex flex-col ${config[type] > 0 ? 'border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'border-slate-200 shadow-sm hover:border-slate-300'}`}>
-                                <div className="p-4 flex-grow">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className={`p-2 rounded-lg ${meta.colorClass}`}>
-                                            <Icon className="w-6 h-6" />
-                                        </div>
-                                        <h3 className="font-bold text-slate-800">{meta.title}</h3>
-                                    </div>
-                                    <p className="text-xs text-slate-500 leading-relaxed min-h-[2.5em]">
-                                        {meta.description}
-                                    </p>
-                                </div>
-                                <div className="p-3 bg-slate-50 border-t border-slate-100 rounded-b-xl flex justify-between items-center">
-                                    <button 
-                                        onClick={() => handleCountChange(type, -1)} 
-                                        className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-50"
-                                        disabled={config[type] === 0}
-                                    >
-                                        <MinusIcon className="w-5 h-5" />
-                                    </button>
-                                    <span className={`text-2xl font-bold w-12 text-center ${config[type] > 0 ? 'text-slate-800' : 'text-slate-300'}`}>
-                                        {config[type]}
-                                    </span>
-                                    <button 
-                                        onClick={() => handleCountChange(type, 1)} 
-                                        className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
-                                    >
-                                        <PlusIcon className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                {mode === 'vocabulary' ? renderVocabularyConfig() : renderListeningConfig()}
 
                 <div className="mt-8 pt-6 border-t border-slate-200 flex justify-between items-center">
                      <button

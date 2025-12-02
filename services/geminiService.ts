@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData } from '../types';
+import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
+import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig } from '../types';
 
 // Helper function to introduce a delay, used for retrying API calls
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -33,10 +33,6 @@ export const validateApiKey = async (apiKey: string): Promise<{ isValid: boolean
 /**
  * Generates a list of 4 multiple-choice options for a given English word.
  * This is used for self-repairing test data if the AI fails to generate options initially.
- * @param ai A configured GoogleGenAI instance.
- * @param word The English word to generate Japanese translation options for.
- * @param onProgress Callback to update the UI with progress messages.
- * @returns A promise that resolves to an array of 4 string options (Japanese translations).
  */
 const generateOptionsForWord = async (ai: GoogleGenAI, word: string, onProgress: (message: string) => void): Promise<string[]> => {
     if (optionsCache.has(word)) {
@@ -210,24 +206,30 @@ export const generateTest = async (
             }
 
             if (['multipleChoice', 'synonym', 'antonym'].includes(q.type)) {
+                // Self-repair logic for options
                 if (!q.options || q.options.length !== 4) {
-                    // Self-repair logic for options
                     if (q.type === 'multipleChoice') {
                         const newOptions = await generateOptionsForWord(ai, originalWord.word, onProgress);
                         // Ensure answer is in options
                         if (!newOptions.includes(q.answer)) {
-                            newOptions[0] = q.answer;
-                            // Shuffle
-                            for (let j = newOptions.length - 1; j > 0; j--) {
-                                const k = Math.floor(Math.random() * (j + 1));
-                                [newOptions[j], newOptions[k]] = [newOptions[k], newOptions[j]];
-                            }
+                            newOptions[0] = q.answer; 
                         }
                         q.options = newOptions;
                     } else {
                         // Skip malformed synonym/antonym questions for now
                         continue;
                     }
+                }
+
+                // Ensure answer is in options (in case AI provided options but forgot the answer)
+                if (!q.options.includes(q.answer)) {
+                    q.options[0] = q.answer;
+                }
+
+                // Shuffle options to randomize answer position
+                for (let j = q.options.length - 1; j > 0; j--) {
+                    const k = Math.floor(Math.random() * (j + 1));
+                    [q.options[j], q.options[k]] = [q.options[k], q.options[j]];
                 }
             }
             
@@ -249,4 +251,210 @@ export const generateTest = async (
         console.error("Test generation error:", e);
         throw new Error(`Failed to generate test: ${e.message}`);
     }
+};
+
+/**
+ * Generates a Listening Test with Script, Audio, and potentially Images.
+ */
+export const generateListeningTest = async (
+    apiKey: string,
+    words: WordPair[],
+    config: ListeningConfig,
+    onProgress: (message: string) => void
+): Promise<GeneratedTestData> => {
+    const ai = new GoogleGenAI({ apiKey });
+    const wordListString = words.map(w => `${w.id}: ${w.word} (${w.translation})`).join('\n');
+
+    onProgress("リスニング原稿と問題を作成中...");
+
+    // 1. Generate Script and Questions
+    const scriptPrompt = `
+    You are an expert English teacher creating a Listening Test.
+    Target Audience Level: ${config.difficulty}
+    
+    Vocabulary List to incorporate:
+    ${wordListString}
+    
+    Tasks:
+    1. Create a natural, coherent English listening script (monologue or dialogue) that incorporates as many words from the list as possible.
+       The script should be suitable for the '${config.difficulty}' level.
+    
+    2. Create ${config.questionCount} multiple-choice questions based on the script.
+       ${config.includeIllustrations 
+         ? 'Some questions should be "listening-image" type where the user must choose the correct picture.' 
+         : 'All questions should be standard multiple-choice text.'}
+    
+    3. For "listening-image" questions:
+       - The 'options' array should contain 4 short descriptive text prompts that could be used to generate images.
+       - One description must match the correct answer found in the script.
+       - Three descriptions must be distractors.
+       - 'answer' should be the text of the correct description.
+
+    4. For standard "listening" questions:
+       - 'options' should be 4 text choices.
+       - 'answer' should be the correct text choice.
+
+    Output Schema (JSON):
+    {
+      "script": "The full english text of the listening script...",
+      "questions": [
+        {
+          "type": "listening" or "listening-image",
+          "prompt": "The question to ask the student (e.g. 'What did the boy buy?')",
+          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "answer": "Option A" (Must match one of the options exactly)
+        }
+      ]
+    }
+    `;
+
+    let generatedData: any;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: scriptPrompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        script: { type: Type.STRING },
+                        questions: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    type: { type: Type.STRING, enum: ['listening', 'listening-image'] },
+                                    prompt: { type: Type.STRING },
+                                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                    answer: { type: Type.STRING }
+                                },
+                                required: ['type', 'prompt', 'options', 'answer']
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!response.text) throw new Error("No script generated");
+        generatedData = JSON.parse(response.text);
+    } catch (e: any) {
+        throw new Error(`Script generation failed: ${e.message}`);
+    }
+
+    // 2. Generate Audio
+    onProgress("音声を生成中...");
+    let audioBase64 = "";
+    try {
+        const audioResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: {
+                parts: [{ text: generatedData.script }]
+            },
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: 'Kore' }
+                    }
+                }
+            }
+        });
+
+        // The SDK returns inlineData for audio
+        const part = audioResponse.candidates?.[0]?.content?.parts?.[0];
+        if (part && part.inlineData && part.inlineData.data) {
+            audioBase64 = part.inlineData.data;
+        } else {
+            console.warn("No audio data found in response");
+        }
+    } catch (e) {
+        console.error("Audio generation failed:", e);
+        // Continue without audio if it fails, but warn
+    }
+
+    // 3. Generate Images (if applicable)
+    const processedQuestions: Question[] = [];
+    const answers: Answer[] = [];
+
+    for (let i = 0; i < generatedData.questions.length; i++) {
+        const q = generatedData.questions[i];
+        
+        // Shuffle options to randomize answer position
+        if (q.options && q.options.length > 0) {
+             for (let j = q.options.length - 1; j > 0; j--) {
+                const k = Math.floor(Math.random() * (j + 1));
+                [q.options[j], q.options[k]] = [q.options[k], q.options[j]];
+            }
+        }
+
+        const processedQ: Question = {
+            type: q.type,
+            prompt: q.prompt,
+            answer: q.answer,
+            options: q.options,
+            wordId: "Listening" // Placeholder
+        };
+
+        if (q.type === 'listening-image' && config.includeIllustrations) {
+            onProgress(`イラストを生成中 (${i + 1}/${generatedData.questions.length})...`);
+            const imageOptions: string[] = [];
+            
+            // Generate 4 images based on the descriptions in 'options'
+            // We do this sequentially to avoid rate limits and ensuring mapping
+            for (const desc of q.options) {
+                try {
+                    // Using generateContent for image generation (Nano Banana)
+                    const imageResponse = await ai.models.generateContent({
+                        model: 'gemini-2.5-flash-image',
+                        contents: {
+                             parts: [{ text: `Draw a simple, clear illustration of: ${desc}` }]
+                        },
+                        config: {
+                            imageConfig: {
+                                aspectRatio: "1:1",
+                                // imageSize not supported for nano banana
+                            }
+                        }
+                    });
+                    
+                    let foundImage = false;
+                    if (imageResponse.candidates && imageResponse.candidates.length > 0) {
+                        for (const part of imageResponse.candidates[0].content.parts) {
+                            if (part.inlineData && part.inlineData.data) {
+                                imageOptions.push(part.inlineData.data);
+                                foundImage = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!foundImage) {
+                        // Placeholder or error image if generation fails
+                         imageOptions.push(""); 
+                    }
+                } catch (e) {
+                    console.error(`Image generation failed for "${desc}":`, e);
+                    imageOptions.push("");
+                }
+            }
+            processedQ.imageOptions = imageOptions;
+            // The text 'options' remain as the descriptions/alt text, but UI will show images
+        }
+
+        processedQuestions.push(processedQ);
+        answers.push({
+            questionIndex: i,
+            answerText: processedQ.answer,
+            wordId: "-"
+        });
+    }
+
+    return {
+        title: `Listening Test (${config.difficulty})`,
+        questions: processedQuestions,
+        answers: answers,
+        audioBase64: audioBase64,
+        script: generatedData.script
+    };
 };
