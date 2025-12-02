@@ -264,7 +264,26 @@ export const generateListeningTest = async (
     onProgress: (message: string) => void
 ): Promise<GeneratedTestData> => {
     const ai = new GoogleGenAI({ apiKey });
-    const wordListString = words.map(w => `${w.id}: ${w.word} (${w.translation})`).join('\n');
+    
+    let promptIntro = "";
+    if (words.length > 0) {
+        const wordListString = words.map(w => `${w.id}: ${w.word} (${w.translation})`).join('\n');
+        promptIntro = `
+        Vocabulary List to incorporate:
+        ${wordListString}
+        
+        Tasks:
+        1. Create a natural, coherent English listening script (monologue or dialogue) that incorporates as many words from the list as possible.
+        `;
+    } else {
+        const themePrompt = config.theme ? `Theme: "${config.theme}"` : `Theme: General daily life or interesting facts (randomly selected)`;
+        promptIntro = `
+        ${themePrompt}
+        
+        Tasks:
+        1. Create a natural, coherent English listening script (monologue or dialogue) relevant to the theme.
+        `;
+    }
 
     onProgress("リスニング原稿と問題を作成中...");
 
@@ -272,12 +291,7 @@ export const generateListeningTest = async (
     const scriptPrompt = `
     You are an expert English teacher creating a Listening Test.
     Target Audience Level: ${config.difficulty}
-    
-    Vocabulary List to incorporate:
-    ${wordListString}
-    
-    Tasks:
-    1. Create a natural, coherent English listening script (monologue or dialogue) that incorporates as many words from the list as possible.
+    ${promptIntro}
        The script should be suitable for the '${config.difficulty}' level.
     
     2. Create ${config.questionCount} multiple-choice questions based on the script.

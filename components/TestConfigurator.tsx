@@ -17,13 +17,12 @@ interface TestConfiguratorProps {
     listeningConfig?: ListeningConfig;
     onListeningConfigChange?: (newConfig: ListeningConfig) => void;
     mode: 'vocabulary' | 'listening';
-    onModeChange: (mode: 'vocabulary' | 'listening') => void;
-
+    
     onGenerateTest: () => void;
     isGenerating: boolean;
     isApiKeyValid: boolean;
     onBack: () => void;
-    rangesCount: number;
+    rangesCount?: number; // Optional because listening mode might not use ranges
 }
 
 const questionMetadata: { [key in keyof QuestionConfig]: { title: string; description: string; icon: React.ElementType, colorClass: string } } = {
@@ -68,7 +67,7 @@ const questionMetadata: { [key in keyof QuestionConfig]: { title: string; descri
 
 const TestConfigurator: React.FC<TestConfiguratorProps> = ({ 
     config, onConfigChange, 
-    listeningConfig, onListeningConfigChange, mode, onModeChange,
+    listeningConfig, onListeningConfigChange, mode,
     onGenerateTest, isGenerating, isApiKeyValid, onBack, rangesCount 
 }) => {
     const handleCountChange = (type: keyof QuestionConfig, delta: number) => {
@@ -129,56 +128,77 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                          <span className="bg-indigo-100 text-indigo-700 p-1.5 rounded-lg"><LanguageIcon className="w-5 h-5" /></span>
-                         難易度設定
+                         基本設定
                     </h3>
+                    
+                    <div className="mb-6">
+                         <label className="block text-sm font-bold text-slate-700 mb-2">
+                            テストのテーマ (任意)
+                        </label>
+                        <input 
+                            type="text" 
+                            value={listeningConfig.theme || ''}
+                            onChange={(e) => onListeningConfigChange({ ...listeningConfig, theme: e.target.value })}
+                            placeholder="例: At the restaurant, Travel, Daily conversation..."
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">
+                            空欄の場合は、AIがランダムに日常的なテーマを選択します。
+                        </p>
+                    </div>
+
                     <div className="flex flex-col space-y-4">
-                        <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                            <input 
-                                type="radio" 
-                                name="difficulty" 
-                                checked={listeningConfig.difficulty === 'beginner'} 
-                                onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'beginner' })}
-                                className="w-4 h-4 text-indigo-600"
-                            />
-                            <div>
-                                <span className="block font-bold text-slate-700">初級 (Beginner)</span>
-                                <span className="text-xs text-slate-500">ゆっくりとしたスピード、基本的な語彙</span>
-                            </div>
-                        </label>
-                        <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                            <input 
-                                type="radio" 
-                                name="difficulty" 
-                                checked={listeningConfig.difficulty === 'intermediate'} 
-                                onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'intermediate' })}
-                                className="w-4 h-4 text-indigo-600"
-                            />
-                             <div>
-                                <span className="block font-bold text-slate-700">中級 (Intermediate)</span>
-                                <span className="text-xs text-slate-500">標準的なスピード、やや複雑な文法</span>
-                            </div>
-                        </label>
-                         <label className="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                            <input 
-                                type="radio" 
-                                name="difficulty" 
-                                checked={listeningConfig.difficulty === 'advanced'} 
-                                onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'advanced' })}
-                                className="w-4 h-4 text-indigo-600"
-                            />
-                             <div>
-                                <span className="block font-bold text-slate-700">上級 (Advanced)</span>
-                                <span className="text-xs text-slate-500">ナチュラルスピード、高度な語彙</span>
-                            </div>
-                        </label>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">難易度</label>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <label className={`flex items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === 'beginner' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                <input 
+                                    type="radio" 
+                                    name="difficulty" 
+                                    className="hidden"
+                                    checked={listeningConfig.difficulty === 'beginner'} 
+                                    onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'beginner' })}
+                                />
+                                <div className="text-center">
+                                    <span className="block font-bold">初級</span>
+                                    <span className="text-xs opacity-75">Beginner</span>
+                                </div>
+                            </label>
+                            <label className={`flex items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === 'intermediate' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                <input 
+                                    type="radio" 
+                                    name="difficulty" 
+                                    className="hidden"
+                                    checked={listeningConfig.difficulty === 'intermediate'} 
+                                    onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'intermediate' })}
+                                />
+                                 <div className="text-center">
+                                    <span className="block font-bold">中級</span>
+                                    <span className="text-xs opacity-75">Intermediate</span>
+                                </div>
+                            </label>
+                             <label className={`flex items-center justify-center p-3 rounded-lg border cursor-pointer transition-all ${listeningConfig.difficulty === 'advanced' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                <input 
+                                    type="radio" 
+                                    name="difficulty" 
+                                    className="hidden"
+                                    checked={listeningConfig.difficulty === 'advanced'} 
+                                    onChange={() => onListeningConfigChange({ ...listeningConfig, difficulty: 'advanced' })}
+                                />
+                                 <div className="text-center">
+                                    <span className="block font-bold">上級</span>
+                                    <span className="text-xs opacity-75">Advanced</span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     {/* Question Count */}
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                              <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg"><ListBulletIcon className="w-5 h-5" /></span>
-                             問題数
+                             1テストあたりの問題数
                         </h3>
                          <div className="flex items-center justify-between">
                             <button 
@@ -197,7 +217,30 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                         </div>
                     </div>
 
+                     {/* Test Count (Batch Generation) */}
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                             <span className="bg-blue-100 text-blue-700 p-1.5 rounded-lg"><PlusIcon className="w-5 h-5" /></span>
+                             作成するテスト数
+                        </h3>
+                         <div className="flex items-center justify-between">
+                            <button 
+                                onClick={() => onListeningConfigChange({ ...listeningConfig, testCount: Math.max(1, listeningConfig.testCount - 1) })} 
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            >
+                                <MinusIcon className="w-5 h-5" />
+                            </button>
+                            <span className="text-3xl font-bold text-slate-800">{listeningConfig.testCount}</span>
+                            <button 
+                                onClick={() => onListeningConfigChange({ ...listeningConfig, testCount: Math.min(10, listeningConfig.testCount + 1) })} 
+                                className="w-10 h-10 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm md:col-span-2">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                              <span className="bg-purple-100 text-purple-700 p-1.5 rounded-lg"><PencilSquareIcon className="w-5 h-5" /></span>
                              オプション
@@ -231,12 +274,20 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                            テスト形式の設定
+                            <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
+                                {mode === 'vocabulary' ? '2' : '設定'}
+                            </span>
+                            {mode === 'vocabulary' ? 'テスト形式の設定' : 'リスニングテスト設定'}
                         </h2>
-                        <p className="text-slate-600 mt-2 ml-10">
-                            ステップ1で指定した <span className="font-semibold">{rangesCount}</span> つの範囲について、テストの種類を選択してください。
-                        </p>
+                        {mode === 'vocabulary' ? (
+                            <p className="text-slate-600 mt-2 ml-10">
+                                指定した <span className="font-semibold">{rangesCount}</span> つの範囲について、テストの種類を選択してください。
+                            </p>
+                        ) : (
+                            <p className="text-slate-600 mt-2 ml-10">
+                                作成するリスニングテストの詳細を設定してください。
+                            </p>
+                        )}
                     </div>
                      <div className="flex items-center bg-slate-50 px-4 py-3 rounded-lg border border-slate-200 self-start md:self-center">
                         <span className="text-sm font-medium text-slate-500 mr-3">合計問題数</span>
@@ -245,22 +296,6 @@ const TestConfigurator: React.FC<TestConfiguratorProps> = ({
                         </span>
                         <span className="text-sm text-slate-400 ml-1">問 / テスト</span>
                     </div>
-                </div>
-
-                {/* Mode Toggles */}
-                <div className="mt-6 flex space-x-1 bg-slate-100 p-1 rounded-lg w-full sm:w-auto self-start inline-flex">
-                    <button
-                        onClick={() => onModeChange('vocabulary')}
-                        className={`flex-1 sm:flex-none px-6 py-2 rounded-md text-sm font-bold transition-all ${mode === 'vocabulary' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        単語テスト
-                    </button>
-                    <button
-                        onClick={() => onModeChange('listening')}
-                        className={`flex-1 sm:flex-none px-6 py-2 rounded-md text-sm font-bold transition-all ${mode === 'listening' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        リスニングテスト (AI生成)
-                    </button>
                 </div>
             </div>
 

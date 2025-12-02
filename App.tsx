@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import ModeSelector from './components/ModeSelector';
 import WordSourceSelector from './components/WordSourceSelector';
 import TestConfigurator from './components/TestConfigurator';
 import GeneratedTest from './components/GeneratedTest';
@@ -28,11 +29,14 @@ const DEFAULT_CONFIG: QuestionConfig = {
 const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
     difficulty: 'intermediate',
     questionCount: 5,
-    includeIllustrations: false
+    includeIllustrations: false,
+    testCount: 1,
+    theme: ''
 };
 
 function App() {
-    const [step, setStep] = useState(1);
+    // Step 0: Mode Selection, 1: Word Source, 2: Config, 3: Generated
+    const [step, setStep] = useState(0); 
     const [wordLists, setWordLists] = useState<WordList[]>([]);
     const [activeListId, setActiveListId] = useState<string | null>(null);
     const [testRanges, setTestRanges] = useState<TestRange[]>([]);
@@ -116,7 +120,8 @@ function App() {
             setError({ message: 'APIキーが設定されていません。', code: 'NO_API_KEY' });
             return;
         }
-        if (!activeList) {
+        
+        if (testMode === 'vocabulary' && !activeList) {
             setError({ message: 'アクティブな単語リストが見つかりません。', code: 'NO_ACTIVE_LIST' });
             return;
         }
@@ -127,39 +132,46 @@ function App() {
         
         try {
             const results: GeneratedTestData[] = [];
-            for (let i = 0; i < testRanges.length; i++) {
-                const range = testRanges[i];
-                setProgressMessage(`テスト ${i + 1}/${testRanges.length} を生成中: ${range.name}`);
-                
-                const start = parseInt(range.startId, 10);
-                const end = parseInt(range.endId, 10);
-                
-                const wordsForRange = activeList.words.filter(word => {
-                    const numId = Number(word.id);
-                    return numId >= start && numId <= end;
-                });
 
-                if (wordsForRange.length === 0) {
-                    console.warn(`Skipping range "${range.name}" as no words were found.`);
-                    continue;
+            if (testMode === 'listening') {
+                const count = Math.max(1, listeningConfig.testCount);
+                for (let i = 0; i < count; i++) {
+                    setProgressMessage(`リスニングテスト ${i + 1}/${count} を生成中...`);
+                    // For listening tests without word lists, pass empty array
+                    const result = await generateListeningTest(apiKey, [], listeningConfig, (msg) => {
+                         setProgressMessage(`リスニングテスト ${i + 1}/${count}: ${msg}`);
+                    });
+                    results.push({ ...result, title: `Listening Test ${i + 1}` });
                 }
 
-                let result: GeneratedTestData;
-                if (testMode === 'listening') {
-                    result = await generateListeningTest(apiKey, wordsForRange, listeningConfig, (msg) => {
-                        setProgressMessage(`リスニングテスト ${i + 1}/${testRanges.length} (${range.name}): ${msg}`);
+            } else {
+                for (let i = 0; i < testRanges.length; i++) {
+                    const range = testRanges[i];
+                    setProgressMessage(`テスト ${i + 1}/${testRanges.length} を生成中: ${range.name}`);
+                    
+                    const start = parseInt(range.startId, 10);
+                    const end = parseInt(range.endId, 10);
+                    
+                    const wordsForRange = activeList!.words.filter(word => {
+                        const numId = Number(word.id);
+                        return numId >= start && numId <= end;
                     });
-                } else {
-                    result = await generateTest(apiKey, wordsForRange, config, (msg) => {
+
+                    if (wordsForRange.length === 0) {
+                        console.warn(`Skipping range "${range.name}" as no words were found.`);
+                        continue;
+                    }
+
+                    const result = await generateTest(apiKey, wordsForRange, config, (msg) => {
                          setProgressMessage(`テスト ${i + 1}/${testRanges.length} (${range.name}): ${msg}`);
                     });
-                }
 
-                results.push({ ...result, title: range.name });
+                    results.push({ ...result, title: range.name });
+                }
             }
 
             if(results.length === 0) {
-                throw new Error("指定された全ての範囲でテストを生成できませんでした。単語が見つからないか、他の問題が発生した可能性があります。");
+                throw new Error("テストを生成できませんでした。設定または単語リストを確認してください。");
             }
 
             setTestBatchData(results);
@@ -177,12 +189,28 @@ function App() {
     
     const activeList = wordLists.find(list => list.id === activeListId) || null;
 
-    const goToPrevStep = () => setStep(s => s - 1);
+    const goToPrevStep = () => {
+        if (step === 2 && testMode === 'listening') {
+            setStep(0); // Go back to mode selection
+        } else {
+            setStep(s => s - 1);
+        }
+    };
+    
     const restart = () => {
-        setStep(1);
+        setStep(0); // Go back to mode selection
         setTestBatchData(null);
         setError(null);
         setTestRanges([]);
+    };
+    
+    const handleModeSelect = (mode: 'vocabulary' | 'listening') => {
+        setTestMode(mode);
+        if (mode === 'vocabulary') {
+            setStep(1);
+        } else {
+            setStep(2); // Skip word source selection
+        }
     };
 
     const renderStep = () => {
@@ -194,6 +222,8 @@ function App() {
         }
 
         switch (step) {
+            case 0:
+                return <ModeSelector onSelectMode={handleModeSelect} />;
             case 1:
                 return <WordSourceSelector 
                     wordLists={wordLists}
@@ -211,7 +241,6 @@ function App() {
                     listeningConfig={listeningConfig}
                     onListeningConfigChange={setListeningConfig}
                     mode={testMode}
-                    onModeChange={setTestMode}
                     onGenerateTest={handleGenerateTest} 
                     isGenerating={isGenerating} 
                     isApiKeyValid={isApiKeyValid} 
@@ -244,7 +273,10 @@ function App() {
         <div className="bg-slate-50 min-h-screen font-sans text-slate-900 pb-20">
             <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm backdrop-blur-md bg-white/90">
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
+                    <div 
+                        className="flex items-center gap-3 cursor-pointer" 
+                        onClick={() => { if(step > 0 && confirm('トップ画面に戻りますか？入力内容は破棄されます。')) restart(); }}
+                    >
                         <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl p-2 shadow-lg shadow-indigo-200">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-white">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
@@ -259,9 +291,11 @@ function App() {
             </header>
 
             <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-10">
-                    <Stepper currentStep={step} />
-                </div>
+                {step > 0 && (
+                    <div className="mb-10">
+                        <Stepper currentStep={step} mode={testMode} />
+                    </div>
+                )}
                 {renderStep()}
             </main>
             

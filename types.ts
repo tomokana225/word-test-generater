@@ -40,6 +40,8 @@ export interface ListeningConfig {
     difficulty: 'beginner' | 'intermediate' | 'advanced';
     questionCount: number;
     includeIllustrations: boolean;
+    testCount: number; // Number of tests to generate
+    theme?: string;    // Optional theme/topic
 }
 
 export interface Question {
