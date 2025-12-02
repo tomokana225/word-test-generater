@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig, GradeLevel } from '../types';
 
 // Helper function to introduce a delay, used for retrying API calls
@@ -79,40 +78,6 @@ const generateOptionsForWord = async (ai: GoogleGenAI, word: string, onProgress:
     }
     // Fallback if generation fails
     return ["選択肢生成エラー", "選択肢生成エラー", "選択肢生成エラー", "選択肢生成エラー"];
-};
-
-/**
- * Helper to generate a single image with retry logic for 429 errors.
- */
-const generateImageWithRetry = async (ai: GoogleGenAI, prompt: string): Promise<string> => {
-    const maxAttempts = 3;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [{ text: `Draw a simple, clear illustration of: ${prompt}` }] },
-                config: { imageConfig: { aspectRatio: "1:1" } }
-            });
-            const part = response.candidates?.[0]?.content?.parts?.[0];
-            if (part && part.inlineData && part.inlineData.data) {
-                return part.inlineData.data;
-            }
-            return "";
-        } catch (e: any) {
-            console.warn(`Image generation attempt ${attempt + 1} failed for "${prompt}":`, e.message);
-            // Check for rate limit error (429)
-            if (e.status === 429 || (e.message && e.message.includes('429'))) {
-                // Exponential backoff: 2s, 4s, 8s
-                const waitTime = 2000 * Math.pow(2, attempt);
-                await delay(waitTime);
-            } else {
-                // For other errors, log and return empty (fail soft)
-                console.error(`Non-retriable error for image "${prompt}":`, e);
-                return ""; 
-            }
-        }
-    }
-    return "";
 };
 
 /**
