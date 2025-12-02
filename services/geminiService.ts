@@ -348,7 +348,8 @@ export const generateListeningTest = async (
                             }
                         }
                     }
-                }
+                },
+                maxOutputTokens: 8192,
             }
         });
 
