@@ -89,7 +89,8 @@ const ResizableFrame: React.FC<ResizableFrameProps> = ({ box, onBoxChange, pageD
 };
 
 function parsePosition(position: string): React.CSSProperties {
-    const styles: React.CSSProperties = {};
+    // Use any to construct the object to avoid TypeScript errors with partial interface property assignment
+    const styles: any = {};
     position.split(' ').forEach(cls => {
         if (cls === 'top-0') styles.top = '0%';
         if (cls === 'left-0') styles.left = '0%';

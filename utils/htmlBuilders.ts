@@ -97,9 +97,22 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
     html += `<div class="answer-grid">`;
     
     data.answers.forEach((ans) => {
+        // Retrieve the question to check for options
+        const question = data.questions[ans.questionIndex];
+        let displayAnswer = escapeHtml(ans.answerText);
+
+        // If the question is multiple choice, find the option index and prepend the label (a, b, c...)
+        if (question && ['multipleChoice', 'synonym', 'antonym'].includes(question.type) && question.options) {
+            const optionIndex = question.options.indexOf(ans.answerText);
+            if (optionIndex !== -1) {
+                const label = String.fromCharCode(97 + optionIndex); // a, b, c, d...
+                displayAnswer = `${label}) ${displayAnswer}`;
+            }
+        }
+
         html += `<div class="answer-item" style="padding: 4px 0; border-bottom: 1px dotted #ccc; display: flex; align-items: baseline;">`;
         html += `<span class="answer-number" style="font-weight: bold; width: 2.5em; flex-shrink: 0;">${ans.questionIndex + 1}.</span>`;
-        html += `<span class="answer-text" style="font-weight: bold; margin-right: 0.5em;">${escapeHtml(ans.answerText)}</span>`;
+        html += `<span class="answer-text" style="font-weight: bold; margin-right: 0.5em;">${displayAnswer}</span>`;
         if (ans.wordId) {
             html += `<span class="answer-word-id" style="font-size: 0.85em; color: #666; margin-left: 0.5em;">（単語番号：${ans.wordId}）</span>`;
         }

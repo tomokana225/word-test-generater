@@ -77,7 +77,7 @@ const EditableText: React.FC<EditableTextProps> = ({
                 ...style,
                 display: 'flex', 
                 alignItems: 'center', 
-                justifyContent: style?.textAlign || 'left'
+                justifyContent: (style as any)?.textAlign || 'left'
             }}
         >
             {value || 'クリックして編集'}
