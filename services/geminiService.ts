@@ -477,6 +477,3 @@ export const generateListeningTest = async (
         script: generatedScript
     };
 };
-```]]></content>
-  </change>
-</changes>

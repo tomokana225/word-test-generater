@@ -1,3 +1,4 @@
+
 import { Question, GeneratedTestData, DraggableElementData, PageStyleSettings } from '../types';
 
 function escapeHtml(text: string): string {
@@ -70,9 +71,13 @@ export function buildTestHtml(questions: Question[], audioBase64?: string): stri
                     html += `<div class="options-grid image-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; margin-left: 24px;">`;
                     q.imageOptions.forEach((imgBase64, idx) => {
                         const label = String.fromCharCode(97 + idx); // a, b, c, d
+                        const imgTag = imgBase64 
+                            ? `<img src="data:image/png;base64,${imgBase64}" style="max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; max-height: 150px;" />` 
+                            : '<div style="border:1px dashed #ccc; padding:20px;">Image Error</div>';
+                        
                         html += `<div style="text-align: center;">
                             <div style="font-weight: bold; margin-bottom: 2px;">${label})</div>
-                            ${imgBase64 ? `<img src="data:image/png;base64,${imgBase64}" style="max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 4px; max-height: 150px;" />` : '<div style="border:1px dashed #ccc; padding:20px;">Image Error</div>'}
+                            ${imgTag}
                         </div>`;
                     });
                     html += `</div>`;
@@ -90,7 +95,7 @@ export function buildTestHtml(questions: Question[], audioBase64?: string): stri
                 }
             } else if (['multipleChoice', 'synonym', 'antonym', 'listening'].includes(q.type) && q.options) {
                 // Text Options
-                html += `<div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; margin-left: 24px; font-size: 0.95em;">`;
+                html += `<div class="options-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; margin-left: 24px; font-size: 0.95em;">`;
                 q.options.forEach((opt, idx) => {
                     const label = String.fromCharCode(97 + idx); // a, b, c, d
                     html += `<div>${label}) ${escapeHtml(opt)}</div>`;
@@ -130,7 +135,6 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
             
             // Check for speaker pattern. 
             // Matches "Man:", "Woman:", "A:", "Speaker 1:", etc. at the start of the line.
-            // The regex looks for any characters (non-greedy) followed by a colon at the start.
             const match = trimmed.match(/^([A-Za-z0-9\s]+?):\s*(.*)$/);
             
             if (match) {
