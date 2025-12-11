@@ -189,7 +189,8 @@ export function buildAnswerSheetHtml(data: GeneratedTestData): string {
         }
 
         html += `<div class="answer-item" style="padding: 4px 0; border-bottom: 1px dotted #ccc; display: flex; align-items: baseline;">`;
-        html += `<span class="answer-number" style="font-weight: bold; width: 2.5em; flex-shrink: 0;">${ans.questionIndex + 1}.</span>`;
+        // Added space after period for copy-paste friendliness
+        html += `<span class="answer-number" style="font-weight: bold; width: 2.5em; flex-shrink: 0;">${ans.questionIndex + 1}. </span>`;
         html += `<span class="answer-text" style="font-weight: bold; margin-right: 0.5em;">${displayAnswer}</span>`;
         if (ans.wordId && ans.wordId !== "-" && ans.wordId !== "Listening") {
             html += `<span class="answer-word-id" style="font-size: 0.85em; color: #666; margin-left: 0.5em;">（単語番号：${ans.wordId}）</span>`;
