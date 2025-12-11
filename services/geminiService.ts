@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { WordPair, QuestionConfig, Question, Answer, GeneratedTestData, ListeningConfig, GradeLevel } from '../types';
 
@@ -173,84 +174,98 @@ export const generateTest = async (
 
     onProgress("AIがテストを作成中...");
 
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: responseSchema,
-                maxOutputTokens: 8192,
-            }
-        });
+    let attempt = 0;
+    const maxAttempts = 3;
+    let lastError: any = null;
 
-        if (!response.text) throw new Error("No response from AI");
+    while (attempt < maxAttempts) {
+        try {
+            const response = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema,
+                    maxOutputTokens: 8192,
+                }
+            });
 
-        const data = JSON.parse(response.text);
-        let questions: Question[] = data.questions || [];
+            if (!response.text) throw new Error("No response from AI");
 
-        const validatedQuestions: Question[] = [];
-        const answers: Answer[] = [];
+            const data = JSON.parse(response.text);
+            let questions: Question[] = data.questions || [];
 
-        for (let i = 0; i < questions.length; i++) {
-            const q = questions[i];
-            
-            if (!q.wordId || !q.answer) continue;
+            const validatedQuestions: Question[] = [];
+            const answers: Answer[] = [];
 
-            const originalWord = words.find(w => w.id === q.wordId);
-            if (!originalWord) continue;
+            for (let i = 0; i < questions.length; i++) {
+                const q = questions[i];
+                
+                if (!q.wordId || !q.answer) continue;
 
-            // Ensure promptWord is set for types that need it if AI missed it
-            if (['multipleChoice', 'synonym', 'antonym'].includes(q.type) && !q.promptWord) {
-                q.promptWord = originalWord.word;
-            }
+                const originalWord = words.find(w => w.id === q.wordId);
+                if (!originalWord) continue;
 
-            if (['multipleChoice', 'synonym', 'antonym'].includes(q.type)) {
-                // Self-repair logic for options
-                if (!q.options || q.options.length !== 4) {
-                    if (q.type === 'multipleChoice') {
-                        const newOptions = await generateOptionsForWord(ai, originalWord.word, onProgress);
-                        // Ensure answer is in options
-                        if (!newOptions.includes(q.answer)) {
-                            newOptions[0] = q.answer; 
+                // Ensure promptWord is set for types that need it if AI missed it
+                if (['multipleChoice', 'synonym', 'antonym'].includes(q.type) && !q.promptWord) {
+                    q.promptWord = originalWord.word;
+                }
+
+                if (['multipleChoice', 'synonym', 'antonym'].includes(q.type)) {
+                    // Self-repair logic for options
+                    if (!q.options || q.options.length !== 4) {
+                        if (q.type === 'multipleChoice') {
+                            const newOptions = await generateOptionsForWord(ai, originalWord.word, onProgress);
+                            // Ensure answer is in options
+                            if (!newOptions.includes(q.answer)) {
+                                newOptions[0] = q.answer; 
+                            }
+                            q.options = newOptions;
+                        } else {
+                            // Skip malformed synonym/antonym questions for now
+                            continue;
                         }
-                        q.options = newOptions;
-                    } else {
-                        // Skip malformed synonym/antonym questions for now
-                        continue;
+                    }
+
+                    // Ensure answer is in options (in case AI provided options but forgot the answer)
+                    if (!q.options.includes(q.answer)) {
+                        q.options[0] = q.answer;
+                    }
+
+                    // Shuffle options to randomize answer position
+                    for (let j = q.options.length - 1; j > 0; j--) {
+                        const k = Math.floor(Math.random() * (j + 1));
+                        [q.options[j], q.options[k]] = [q.options[k], q.options[j]];
                     }
                 }
-
-                // Ensure answer is in options (in case AI provided options but forgot the answer)
-                if (!q.options.includes(q.answer)) {
-                    q.options[0] = q.answer;
-                }
-
-                // Shuffle options to randomize answer position
-                for (let j = q.options.length - 1; j > 0; j--) {
-                    const k = Math.floor(Math.random() * (j + 1));
-                    [q.options[j], q.options[k]] = [q.options[k], q.options[j]];
-                }
+                
+                validatedQuestions.push(q);
+                answers.push({
+                    questionIndex: validatedQuestions.length - 1,
+                    answerText: q.answer,
+                    wordId: q.wordId
+                });
             }
-            
-            validatedQuestions.push(q);
-            answers.push({
-                questionIndex: validatedQuestions.length - 1,
-                answerText: q.answer,
-                wordId: q.wordId
-            });
+
+            return {
+                title: "Generated Test",
+                questions: validatedQuestions,
+                answers: answers
+            };
+
+        } catch (e: any) {
+            console.error(`Test generation error (Attempt ${attempt + 1}/${maxAttempts}):`, e);
+            lastError = e;
+            attempt++;
+            if (attempt < maxAttempts) {
+                const delayMs = 1000 * attempt;
+                onProgress(`エラーが発生しました。再試行します... (${attempt}/${maxAttempts})`);
+                await delay(delayMs);
+            }
         }
-
-        return {
-            title: "Generated Test",
-            questions: validatedQuestions,
-            answers: answers
-        };
-
-    } catch (e: any) {
-        console.error("Test generation error:", e);
-        throw new Error(`Failed to generate test: ${e.message}`);
     }
+
+    throw new Error(`Failed to generate test after ${maxAttempts} attempts: ${lastError?.message || 'Unknown error'}`);
 };
 
 /**
