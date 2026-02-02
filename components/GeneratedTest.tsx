@@ -20,6 +20,7 @@ import PrintPreviewModal from './PrintPreviewModal';
 import AnswerSheet from './AnswerSheet';
 import ErrorDisplay from './ErrorDisplay';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import ContentEditable from './ContentEditable';
 
 const DEFAULT_PAGE_SETTINGS: PageStyleSettings = {
     fontSize: 10.5,
@@ -76,10 +77,11 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     // State for Answer Sheet
     const [answerColumns, setAnswerColumns] = useState<1 | 2>(2);
 
-    const editorRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const editorRefs = useRef<(HTMLElement | null)[]>([]);
     const paginatorRef = useRef<HTMLDivElement>(null);
     const printIframeRef = useRef<HTMLIFrameElement>(null);
     const isRecordingHistory = useRef(true);
+    const paginationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const recordHistory = useCallback(() => {
         if (!isRecordingHistory.current) return;
@@ -123,7 +125,7 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
         const maxContentHeight = dimension.height - (pageSettings.margin * 2 * mmToPx) - 5; 
 
         paginatorRef.current.innerHTML = documentHtml;
-        const nodes = Array.from(paginatorRef.current.childNodes);
+        const nodes = Array.from(paginatorRef.current.childNodes) as Node[];
         const newPages: string[] = [];
         
         const tempPageDiv = document.createElement('div');
@@ -170,10 +172,29 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
     useLayoutEffect(() => { paginateContent(); }, [paginateContent]);
 
     const handleContentChange = (pageIndex: number, newHtml: string) => {
+        // Update local pages state immediately for responsiveness
         const newPages = [...pages];
         newPages[pageIndex] = newHtml;
-        setDocumentHtml(newPages.join(''));
-        recordHistory();
+        setPages(newPages);
+
+        // Debounce the full document update and repagination
+        if (paginationTimeoutRef.current) {
+            clearTimeout(paginationTimeoutRef.current);
+        }
+        
+        paginationTimeoutRef.current = setTimeout(() => {
+            setDocumentHtml(newPages.join(''));
+            recordHistory();
+        }, 1500); // 1.5 second delay before re-paginating
+    };
+    
+    const handleContinuousContentChange = (newHtml: string) => {
+        setDocumentHtml(newHtml);
+        // Continuous view doesn't rely on `pages` for display, but we should update history eventually
+        if (paginationTimeoutRef.current) clearTimeout(paginationTimeoutRef.current);
+        paginationTimeoutRef.current = setTimeout(() => {
+            recordHistory();
+        }, 1500);
     };
     
     const handleCopyToClipboard = useCallback(() => {
@@ -341,13 +362,9 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                                     padding: `${pageSettings.margin}mm`
                                 }}
                             >
-                                <div 
-                                    contentEditable 
-                                    suppressContentEditableWarning 
-                                    dangerouslySetInnerHTML={{ __html: documentHtml }} 
-                                    onInput={(e) => {
-                                        setDocumentHtml(e.currentTarget.innerHTML);
-                                    }}
+                                <ContentEditable 
+                                    html={documentHtml}
+                                    onChange={handleContinuousContentChange}
                                     className="w-full h-full outline-none" 
                                     style={{ 
                                         fontSize: `${pageSettings.fontSize}pt`, 
@@ -360,13 +377,11 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                             <>
                                 {pages.map((pageHtml, index) => (
                                     <div key={index} className="bg-white shadow-lg mx-auto relative printable-page transition-transform hover:shadow-xl" style={{ width: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].width}px`, height: `${PAGE_DIMENSIONS[pageSettings.paperSize][pageSettings.orientation].height}px`, marginBottom: '2rem' }}>
-                                        <div 
+                                        <ContentEditable 
                                             ref={el => { editorRefs.current[index] = el; }} 
-                                            contentEditable 
-                                            suppressContentEditableWarning 
+                                            html={pageHtml}
+                                            onChange={(newHtml) => handleContentChange(index, newHtml)}
                                             onBlur={() => recordHistory()} 
-                                            onInput={(e) => handleContentChange(index, e.currentTarget.innerHTML)} 
-                                            dangerouslySetInnerHTML={{ __html: pageHtml }} 
                                             className="w-full h-full box-border outline-none" 
                                             style={{ 
                                                 padding: `${pageSettings.margin}mm`, 
