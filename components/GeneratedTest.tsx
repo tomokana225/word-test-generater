@@ -219,6 +219,58 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
         }
     }, [pages, elements, pageSettings]);
 
+    // --- Word Download Handler ---
+    const handleDownloadWord = useCallback(() => {
+        // Construct a complete HTML file with MSO specific schemas
+        const content = activeView === 'answers' ? answersHtml : documentHtml;
+        const title = activeView === 'answers' ? 'Answer_Key' : 'Vocabulary_Test';
+        
+        const htmlString = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset="utf-8">
+                <title>${title}</title>
+                <style>
+                    /* Page Setup for Word */
+                    @page {
+                        mso-page-orientation: ${pageSettings.orientation};
+                        size: ${pageSettings.paperSize} ${pageSettings.orientation};
+                        margin: ${pageSettings.margin}mm;
+                    }
+                    body {
+                        font-family: 'Times New Roman', serif;
+                        font-size: ${pageSettings.fontSize}pt;
+                        line-height: ${pageSettings.lineHeight};
+                    }
+                    /* Ensure tables have borders where expected in Word */
+                    table { border-collapse: collapse; width: 100%; }
+                    .question-item { margin-bottom: 1em; }
+                    .section-title { font-weight: bold; font-size: 1.2em; margin-top: 1em; margin-bottom: 0.5em; }
+                    /* Hide non-printable elements */
+                    .no-print { display: none; }
+                </style>
+            </head>
+            <body>
+                ${content}
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', htmlString], {
+            type: 'application/msword'
+        });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${title}_${new Date().toISOString().slice(0, 10)}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, [documentHtml, answersHtml, activeView, pageSettings]);
+
+
     const handleAddElement = (type: 'text' | 'shape', shapeType?: 'rectangle' | 'circle') => {
         const newElement: DraggableElementData = {
             id: `el-${Date.now()}`, x: 50, y: 50, width: 200, height: type === 'text' ? 40 : 100,
@@ -273,6 +325,7 @@ const GeneratedTest: React.FC<GeneratedTestProps> = ({ testBatch, onRestart, err
                 onSaveLayout={handleSaveLayout} 
                 onResetLayout={handleResetLayout} 
                 onPrint={handlePrint} 
+                onDownloadWord={handleDownloadWord}
                 onCopyToClipboard={handleCopyToClipboard} 
                 showFormattingMarks={showFormattingMarks} 
                 onToggleFormattingMarks={() => setShowFormattingMarks(!showFormattingMarks)} 

@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, forwardRef } from 'react';
+import React, { useRef, useLayoutEffect, forwardRef } from 'react';
 
 interface ContentEditableProps {
     html: string;
@@ -24,23 +24,28 @@ const ContentEditable = forwardRef<HTMLElement, ContentEditableProps>(({
 }, ref) => {
     const internalRef = useRef<HTMLElement>(null);
     const elementRef = (ref as React.MutableRefObject<HTMLElement | null>) || internalRef;
-    const lastHtml = useRef(html);
+    const lastHtmlRef = useRef(html);
 
-    // Sync innerHTML with prop only if it differs significantly and wasn't just updated by user input
-    useEffect(() => {
-        if (elementRef.current) {
-            const currentHtml = elementRef.current.innerHTML;
-            if (html !== currentHtml && html !== lastHtml.current) {
-                elementRef.current.innerHTML = html;
-            }
-            // Always update ref to current prop
-            lastHtml.current = html;
+    // useLayoutEffect runs synchronously after DOM mutations but before paint.
+    // This allows us to update the innerHTML if it doesn't match the prop,
+    // ensuring the initial render is correct and external updates are applied,
+    // while preventing flashes of empty content.
+    useLayoutEffect(() => {
+        const el = elementRef.current;
+        if (!el) return;
+
+        // If the DOM content differs from the prop (and it wasn't just updated by us typing),
+        // we update the DOM.
+        if (el.innerHTML !== html) {
+            el.innerHTML = html;
         }
-    }, [html, elementRef]);
+        
+        lastHtmlRef.current = html;
+    }, [html]);
 
     const handleInput = (e: React.FormEvent<HTMLElement>) => {
         const newHtml = e.currentTarget.innerHTML;
-        lastHtml.current = newHtml;
+        lastHtmlRef.current = newHtml;
         onChange(newHtml);
         if (onInput) onInput(e);
     };
@@ -56,7 +61,9 @@ const ContentEditable = forwardRef<HTMLElement, ContentEditableProps>(({
             suppressContentEditableWarning
             onInput={handleInput}
             onBlur={onBlur}
-            dangerouslySetInnerHTML={{ __html: html }}
+            // We deliberately DO NOT use dangerouslySetInnerHTML here.
+            // Including it would cause React to reconcile the DOM on every render,
+            // which resets the cursor position. We manage innerHTML manually in useLayoutEffect.
         />
     );
 });

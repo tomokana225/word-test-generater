@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { PageStyleSettings } from '../types';
 import { BoldIcon } from './icons/BoldIcon';
@@ -23,6 +24,7 @@ import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { PrintIcon } from './icons/PrintIcon';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { MarginIcon } from './icons/MarginIcon';
+import { WordIcon } from './icons/WordIcon';
 
 export interface FormatState {
     fontName: string;
@@ -43,6 +45,7 @@ interface RibbonProps {
     onSaveLayout: () => void;
     onResetLayout: () => void;
     onPrint: () => void;
+    onDownloadWord: () => void;
     onCopyToClipboard: () => void;
     showFormattingMarks: boolean;
     onToggleFormattingMarks: () => void;
@@ -224,6 +227,7 @@ const Ribbon: React.FC<RibbonProps> = (props) => {
                      <button onClick={restProps.onResetLayout} className="p-2 rounded-md hover:bg-slate-200 text-slate-700" title="レイアウトをリセット"><ArrowPathIcon className="w-5 h-5" /></button>
                      <div className="w-px h-8 bg-slate-300 mx-1"></div>
                      <button onClick={restProps.onCopyToClipboard} className="p-2 rounded-md hover:bg-slate-200 text-slate-700" title="クリップボードにコピー"><ClipboardIcon className="w-5 h-5" /></button>
+                     <button onClick={restProps.onDownloadWord} className="p-2 rounded-md hover:bg-blue-100 text-blue-700" title="Wordファイルとしてダウンロード"><WordIcon className="w-5 h-5" /></button>
                      <button onClick={restProps.onPrint} className="p-2 rounded-md hover:bg-slate-200 text-slate-700" title="印刷"><PrintIcon className="w-5 h-5" /></button>
                 </div>
             </div>
