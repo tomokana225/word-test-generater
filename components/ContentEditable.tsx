@@ -61,9 +61,6 @@ const ContentEditable = forwardRef<HTMLElement, ContentEditableProps>(({
             suppressContentEditableWarning
             onInput={handleInput}
             onBlur={onBlur}
-            // We deliberately DO NOT use dangerouslySetInnerHTML here.
-            // Including it would cause React to reconcile the DOM on every render,
-            // which resets the cursor position. We manage innerHTML manually in useLayoutEffect.
         />
     );
 });
