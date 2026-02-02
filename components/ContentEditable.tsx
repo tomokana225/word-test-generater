@@ -23,15 +23,28 @@ const ContentEditable = forwardRef<HTMLElement, ContentEditableProps>(({
     disabled = false
 }, ref) => {
     const internalRef = useRef<HTMLElement>(null);
-    const elementRef = (ref as React.MutableRefObject<HTMLElement | null>) || internalRef;
     const lastHtmlRef = useRef(html);
+
+    // Sync the forwarded ref with our internal ref.
+    // This is crucial because `ref` can be a callback function or a RefObject.
+    // The previous implementation failed for callback refs, causing internalRef to be ignored
+    // and innerHTML never to be set.
+    useLayoutEffect(() => {
+        if (!ref) return;
+
+        if (typeof ref === 'function') {
+            ref(internalRef.current);
+        } else {
+            (ref as React.MutableRefObject<HTMLElement | null>).current = internalRef.current;
+        }
+    }, [ref]);
 
     // useLayoutEffect runs synchronously after DOM mutations but before paint.
     // This allows us to update the innerHTML if it doesn't match the prop,
     // ensuring the initial render is correct and external updates are applied,
     // while preventing flashes of empty content.
     useLayoutEffect(() => {
-        const el = elementRef.current;
+        const el = internalRef.current;
         if (!el) return;
 
         // If the DOM content differs from the prop (and it wasn't just updated by us typing),
@@ -54,7 +67,7 @@ const ContentEditable = forwardRef<HTMLElement, ContentEditableProps>(({
 
     return (
         <Tag
-            ref={elementRef}
+            ref={internalRef}
             className={className}
             style={style}
             contentEditable={!disabled}
